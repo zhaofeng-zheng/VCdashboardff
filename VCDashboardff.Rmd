@@ -1,0 +1,3377 @@
+
+
+---
+title: "Visicase Analytics - Out of the FOG"
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+      vertical_layout: scroll
+      orientation: columns
+---
+
+
+
+```{r data, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE) 
+library(shiny)
+library(bs4Dash)
+library(readxl)
+library(DBI)
+library(RODBC)
+library(odbc)
+library(stringr)
+library(dplyr)
+require(colorspace)
+#library(sqldf)
+library(ggplot2) 
+library(plotly) 
+#library(gganimate)
+library(knitr)
+library(reactable)
+#library(reshape2)
+#library(sqldf)
+library(scales)
+library(shinyWidgets)
+library(shinythemes)
+library(shinyanimate)
+library(readr)
+#library(ggpubr)
+library(htmltools)
+library(tidyr)
+library(tidyverse)
+library(DescTools)
+library(lubridate)
+#library(ggsci)
+#library(interp)
+library(DT)
+library(colorspace)
+require(pals)
+library(shinyfullscreen)
+library(jpeg)
+library(png)
+#library(patchwork)
+#library(rpivotTable) 
+#library(esquisse)
+#library(rspivot)
+#library(naniar)
+library(circular)
+library(ggimage)
+#library(magick)
+#library(rsvg)
+library(shinyhelper)
+#library(sugrrants)
+#library(ganttrify)
+library(collapsibleTree)
+#library(namespace)
+#library(data.table)
+require(data.table)
+#library(RCircos)
+library(circlize)
+library(lubridate)
+library(fresh)
+#library(forcats)
+#library(lookup)
+#library(NISTunits)
+library(gridExtra)
+#library(leaflet)
+#library(leaflet.extras)
+# library(shinydashboard)
+#library(shinydashboardPlus)
+library(colourvalues)
+library(shinyjs)
+
+
+
+
+#library(fuzzyjoin)
+#library(grid)
+#library(gridBase)
+#library(conflicted)
+# install.packages("devtools")
+#devtools::install_github("r-lib/conflicted")
+
+
+#library(dplyr, warn.conflicts = FALSE)
+#  { theme: "flatly", fillPage: true, orientation: "columns", storyboard: false, defaultFigWidth: 576, defaultFigHeight: 460, # # #  defaultFigWidthMobile: 360, defaultFigHeightMobile: 460 }
+#    install.packages("BiocManager")
+#
+#BiocManager::install("MetCirc")
+# rm(list=ls())
+# getwd()
+#data-width and data-height  fig_mobile
+Sys.setenv(TZ='Australia/NSW')
+
+###############  Load the Visicase rn cube data  ################################
+vcfiles<-list.files(path = "//home/ffoley/ShinyApps/VCCubes_OM_test", pattern = "*.csv", full.names = T)
+
+for(file in vcfiles) 
+{
+filename <- str_replace_all(file, "//home/ffoley/ShinyApps/VCCubes_OM_test/", "")
+filename <- str_replace_all(filename, ".csv","")
+filename <- str_replace_all(filename, "dbo.","")
+filename <- str_replace_all(filename, " ","")
+assign(filename,read.csv(file,header = TRUE))
+print(filename)
+
+}
+
+
+#VCA_Clients_actuals_monthly 
+servicemonthmin <-  min(dmy(VCA_Clients_actuals_monthly$Service_month)) 
+servicemonthmax <-  max(dmy(VCA_Clients_actuals_monthly$Service_month)) 
+VCA_Clients_actuals_monthly <- VCA_Clients_actuals_monthly %>% mutate (
+      Service_month = dmy(Service_month)) 
+
+VCA_Clients_actuals_monthly <- left_join(VCA_Clients_actuals_monthly, VCA_Clients_view, by=c("Client_id" = "Client_item_id"))
+VCA_Clients_actuals_monthly$Outlet_id <- as.integer(VCA_Clients_actuals_monthly$Outlet_id )
+VCA_Clients_actuals_monthly$Client <- VCA_Clients_actuals_monthly$Participant
+
+VCA_Clients_actuals_monthly <- left_join(VCA_Clients_actuals_monthly, VCA_Outlets_View, by=c("Outlet_id" = "outlet_item_id"))
+
+
+
+VCA_Clients_view <- VCA_Clients_view %>%     group_by(Client_item_id) %>%     filter(row_number()==1)
+VCA_Clients_actuals_monthly <- left_join(VCA_Clients_actuals_monthly, VCA_Clients_view, by=c("Client_id" = "Client_item_id"))
+
+# VCA_Margins
+VCA_Margins <- VCA_Margins %>% mutate ( Start_month = dmy(Start_month))
+VCA_Margins$Client_item_id <- as.integer(VCA_Margins$Client_item_id)
+VCA_Margins <- left_join(VCA_Margins, VCA_Clients_view, by=c("Client_item_id" = "Client_item_id"))
+VCA_Margins$Outlet_id <- as.integer(VCA_Margins$Outlet_item_id)
+VCA_Margins$Client <- VCA_Margins$Participant
+VCA_Margins <- left_join(VCA_Margins, VCA_Outlets_View, by=c("Outlet_item_id" = "outlet_item_id"))
+
+
+
+
+
+#VCA_Clients_budget_monthly 
+#budgetmonthmin <-  min(dmy(VCA_Clients_budget_monthly$Service_month)) 
+#budgetmonthmax <-  max(dmy(VCA_Clients_budget_monthly$Service_month)) 
+
+#VCA_Clients_budget_monthly <- left_join(VCA_Clients_budget_monthly, VCA_Clients_view, by=c("Client_id" = "Client_item_id"))
+#VCA_Clients_budget_monthly$Outlet_id <- as.integer(VCA_Clients_budget_monthly$Outlet_id )
+#VCA_Clients_budget_monthly$Client <- VCA_Clients_budget_monthly$Participant
+
+#VCA_Clients_budget_monthly <- left_join(VCA_Clients_budget_monthly, VCA_Outlets_View, by=c("Outlet_id" = "outlet_item_id"))
+
+
+
+
+
+#get start and end of X axis for Funding  
+fundingmonthmin <-  min(dmy(VCA_Funding_utilisation$Funding_from)) 
+fundingmonthmax <-  max(dmy(VCA_Funding_utilisation$Funding_To)) 
+
+
+
+#get Client start and end months
+#Clientstartend <- VCA_Clients_actuals_monthly  %>%  select ( Client, Service_month, Expended) %>% 
+#group_by(Client)   %>%  summarise(startmonth = min(Service_month),endmonth= max(Service_month), sum(Expended))
+
+# ensure Client id is a number
+#VCA_Clients_actuals_monthly$Client_id <- as.integer(VCA_Clients_actuals_monthly$Client_id) 
+#VCA_Clients_actuals_monthly$Age <- as.integer(VCA_Clients_actuals_monthly$Age) 
+
+VCA_Incidents$Participant = paste0("Client ", VCA_Incidents$Client_item_id)
+VCA_Incidents$Coordinator = paste0("Coordinator ", substr(VCA_Incidents$Coordinator,1,3), substr(VCA_Incidents$Coordinator,6,8))
+
+VCA_Incidents$Incident_severity =  case_when(VCA_Incidents$Incident_severity == "5 Reportable Incident"   ~ "5 Reportable Incident", TRUE ~ VCA_Incidents$Incident_severity)
+VCA_Incidents$Incident_severity_label =  case_when(VCA_Incidents$Incident_severity == "Reportable Incident"   ~ "Reportable Incident", TRUE ~ VCA_Incidents$Incident_severity_label)
+
+# Control items for Client filters
+choicex <- c("Shift month"="Service_month" # ,"Service Day of the week" = "Servicedow", "Birth Year" = "Date_of_birth"
+             )
+choicey <- c( "Shift Hours" = "Duration_in_min", "Number of Active Clients" = "Client" , #, 
+                     "Service Hours" = "Qty",   "Average Unit Price" = "Unit_price",   "Age" = "Age"
+                     )
+choicel <- c( "Service name" = "Service_desc", "Outlet" = "outlet_name" , 
+                "Perferred Language" = "Preferred_language",  "Gender" =  "Gender", "ATSI" = "ATSI" ,
+                  "Age Bands" = "AgeBands_Worker" ,   "Country of Birth" = "Country_of_birth", 
+              "Ethnic status" = "Ethnic_status", "Marital status" = "Marital_status")
+
+
+######### WORKERS ###################################
+
+#------------------  get start and end of X axis  --------------------------------------------------------
+shiftmonthmin <-  servicemonthmin
+          #min(dmy(VCA_Worker_timesheets_monthly$Shift_month))  # shiftmonthmin <- as.Date('01-01-2018')
+shiftmonthmax <-  servicemonthmax
+          #max(dmy(VCA_Worker_timesheets_monthly$Shift_month))  #  shiftmonthmax <- as.Date('01-01-2021')  
+
+
+# Control items for Worker filters
+choicexw <- c("Shift month"="Shift_month" # ,"Service Day of the week" = "Servicedow", "Birth Year" = "Date_of_birth"
+             )
+choiceyw <- c( "Shift Hours" = "Duration_in_min", "Number of Active Workers" = "Team_Member" #,   "Age" = "Age" #, 
+                   #  "Service Hours" = "Qty",   "Average Unit Price" = "Unit_price"
+                     )
+choicelw <- c( #"Service name" = "Service_desc", "Outlet" = "outlet_name" , 
+                "Perferred Language" = "Preferred_language",  "Gender" =  "Gender", "ATSI" = "ATSI" ,
+                 "Age Bands" = "AgeBands_Worker" ,
+                 "Country of Birth" = "Country_of_birth", "Ethnic status" = "Ethnic_status"
+                , "Marital status" = "Marital_status")
+
+# Control items for Services filters
+choicexs <- c("Shift month"="Shift_month" # ,"Service Day of the week" = "Servicedow", "Birth Year" = "Date_of_birth"
+             )
+choiceys <- c( "Shift Hours" = "Duration_in_min", "Number of Active Workers" = "Team_Member" #,   "Age" = "Age" #, 
+                   #  "Service Hours" = "Qty",   "Average Unit Price" = "Unit_price"
+                     )
+choicels <- c( #"Service name" = "Service_desc", "Outlet" = "outlet_name" , 
+                "Perferred Language" = "Preferred_language",  "Gender" =  "Gender", "ATSI" = "ATSI" ,
+                 "Age Bands" = "AgeBands" ,
+                 "Country of Birth" = "Country_of_birth", "Ethnic status" = "Ethnic_status"
+                , "Marital status" = "Marital_status")
+
+
+
+######### SAFETY ###################################
+#VCA_Incidents$Incident_date <- parse_date_time(VCA_Incidents$Incident_date,orders = c("dmy"),quiet = TRUE)
+VCA_Incidents$Incident_hourn <- as.numeric(VCA_Incidents$Incident_hour)
+mindate <- min(dmy(VCA_Incidents$minincdate) )   #min(VCA_Incidents$Incident_date,na.rm=TRUE)
+maxdate <- max(dmy(VCA_Incidents$maxincdate))  #max(VCA_Incidents$Incident_date,na.rm=TRUE)
+
+
+
+shiftrow <- function(v) {
+    # put a vector in, strip off leading NA values, and place that amount at the end
+    first_na_index <- min( which(!is.na(v)) )
+    # return that bit to the end,  and pad with NAs.
+    c(v[first_na_index:length(v)], rep(NA, first_na_index-1)) }
+
+# function: we need pretty labels.
+pretty_print <-   # reactive ({ 
+    function(n) { case_when( n <= 1  ~ sprintf("%1.0f %%", n*100),
+                             n >  1  ~ as.character(n), TRUE    ~ " ")  }  #}) # for NA values, skip the label   
+
+
+ 
+ 
+#<style>  .superbigimage{      overflow-x:scroll;      white-space: nowrap;  }
+#  .superbigimage img{     max-width: none;  }
+#</style>
+# tags$div(style = " overflow-x:scroll;      white-space: nowrap;"),
+#
+#This produces the plot with a special css class
+#<div class="superbigimage">
+############################## 
+ 
+#<style>  .superbigimage{      overflow-x:scroll;      white-space: nowrap;  }
+#  .superbigimage img{     max-width: none;  }
+#</style>
+# tags$div(style = " overflow-x:scroll;      white-space: nowrap;"),
+#
+#This produces the plot with a special css class
+#<div class="superbigimage">
+
+ #PirateShip = makeAwesomeIcon(icon= 'fire',  iconColor = 'green', library = "fa")
+######### High Contract Colours ###################################
+c25 <- c(    # red # purple # orange # lt pink  # lt purple  # lt orange
+    "dodgerblue2", "#E31A1C",    "green4",    "#6A3D9A",     "#FF7F00",    "black", "gold1",    "skyblue2", "#FB9A99", 
+    "palegreen2",    "#CAB2D6",     "#FDBF6F",     "gray70", "khaki2",    "maroon", "orchid1", "deeppink1", "blue1",
+    "steelblue4",    "darkturquoise", "green1", "yellow4", "yellow3",    "darkorange4", "brown",
+    "dodgerblue2", "#E31A1C",     "green4",    "#6A3D9A",     "#FF7F00",     "black", "gold1",    "skyblue2", "#FB9A99", 
+    "palegreen2",    "#CAB2D6",     "#FDBF6F",     "gray70", "khaki2",    "maroon", "orchid1", "deeppink1", "blue1",
+    "steelblue4",    "darkturquoise", "green1", "yellow4", "yellow3",    "darkorange4", "brown",
+    "dodgerblue2", "#E31A1C",    "green4",    "#6A3D9A",     "#FF7F00",    "black", "gold1",    "skyblue2", "#FB9A99", 
+    "palegreen2",    "#CAB2D6",     "#FDBF6F",     "gray70", "khaki2",    "maroon", "orchid1", "deeppink1", "blue1",
+    "steelblue4",    "darkturquoise", "green1", "yellow4", "yellow3",    "darkorange4", "brown",
+    "dodgerblue2", "#E31A1C",     "green4",    "#6A3D9A",     "#FF7F00",     "black", "gold1",    "skyblue2", "#FB9A99", 
+    "palegreen2",    "#CAB2D6",     "#FDBF6F",     "gray70", "khaki2",    "maroon", "orchid1", "deeppink1", "blue1",
+    "steelblue4",    "darkturquoise", "green1", "yellow4", "yellow3",    "darkorange4", "brown",
+    "dodgerblue2", "#E31A1C",    "green4",    "#6A3D9A",     "#FF7F00",    "black", "gold1",    "skyblue2", "#FB9A99", 
+    "palegreen2",    "#CAB2D6",     "#FDBF6F",     "gray70", "khaki2",    "maroon", "orchid1", "deeppink1", "blue1",
+    "steelblue4",    "darkturquoise", "green1", "yellow4", "yellow3",    "darkorange4", "brown",
+    "dodgerblue2", "#E31A1C",     "green4",    "#6A3D9A",     "#FF7F00",     "black", "gold1",    "skyblue2", "#FB9A99", 
+    "palegreen2",    "#CAB2D6",     "#FDBF6F",     "gray70", "khaki2",    "maroon", "orchid1", "deeppink1", "blue1",
+    "steelblue4",    "darkturquoise", "green1", "yellow4", "yellow3",    "darkorange4", "brown")
+#Create a custom color scale
+color_map <- setNames(c25, choicel)
+myColors <- c25 
+names(myColors) <-  c( "Service name" = "Service_desc", "Outlet" = "outlet_name", 
+                "Perferred Language" = "Preferred_language",  "Gender" =  "Gender", "ATSI" = "ATSI" ,    "Age" = "Age", 
+                "AgeBands" = "AgeBans",
+                 "Country of Birth" = "Country_of_birth", "Ethnic status" = "Ethnic_status", 
+                "Marital status" = "Marital_status")
+colScale <- scale_colour_manual(name = "lselected",values = myColors)
+
+      
+      safecolslookup  <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+                  "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable"  = "red" )
+        
+        
+      safetycols <- data.frame(Sevno =   c("0.1","1" ,"2" ,"3",  "4", "5" ))  
+      safetycols$Sevdesc <-  c(" _ Unknown","1 Insignificant","2 Minor" ,"3 Moderate" ,  "4 Major" , "5 Reportable Incident"  )
+      safetycols$colno <-  c("NA", "1" ,"2" ,"3",  "4", "5" )
+      safetycols$Sevcol <-  c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" )
+          
+
+            
+            
+      #https://stackoverflow.com/questions/37051631/add-popovers-to-shiny-app
+      
+      helper(shiny::actionButton("go", "click me!"),
+             icon = "exclamation",
+             colour = "red",
+             type = "markdown",
+             content = "ClickHelp")  # looks for 'helpfiles/ClickHelp.md'
+
+      cal19 <- tibble(
+        date = seq(as.Date("2019-01-01"), as.Date("2019-12-31"), by = 1),
+        x = 0L,
+        y = 0L,
+        dom = mday(date),
+        weekend = as.factor(if_else(lubridate::wday(ymd(date), week_start = 1,label = FALSE) %in% c(6, 7), 1, 0))
+      )
+        colsgr <-c("1"="1","2"="1","3"="2","4"="2","5"="2","6"="2","7"="3","8"="3","9"="3","10"="3","11"="4","12"="4")
+        cal19$grids <- colsgr[lubridate::month(ymd(cal19$date),label = FALSE)]
+
+      color_table <- tibble(
+        Incident_Severity =  c(" _ Unknown","1 Insignificant","2 Minor" ,"3 Moderate" ,  "4 Major" , "5 Reportable Incident"  ),
+        Color =  c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        Sevno2 =   c("NA", "1" ,"2" ,"3",  "4", "5" )  )
+
+      array1 <- array(c("light grey", "green" , "forestgreen" , "yellow",  "#FF9F00",  "red" ),dim = c(6,1))
+    
+    colorlookup <- c(" _ Unknown" = "light grey","1 Insignificant" = "green" ,
+                  "2 Minor" = "forestgreen" ,"3 Moderate" = "yellow", "4 Major" = "orange", "5 Reportable Incident" = "red" )
+  
+    VCA_Incidents$Incident_severity[VCA_Incidents$Incident_severity == "5 Catestrophic"] <-  "5 Reportable Incident"
+    VCA_Incidents <-  left_join(VCA_Incidents, color_table, by = c("Incident_severity" = "Incident_Severity")) 
+    VCA_Incidents$Color[is.na(VCA_Incidents$Color)] <-  "white"
+    
+     #VCA_Incidents$Color[VCA_Incidents$Color == "white"] <-  "red"
+    
+    VCA_Funding_utilisation <-  dplyr::left_join(VCA_Funding_utilisation, VCA_Clients_view, by = c("Participant" = "Participant"  ))
+    
+
+          thedaynos =  c("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday", "Sunday")   
+
+     
+ # my_image <-  readPNG(system.file("img","dashboardtop.png", package="png") ) 
+
+    
+#head(search_vars_bs4dash("navbar"))
+          
+  list_to_string <- function(obj, listname) {
+   if (is.null(names(obj))) {
+     paste(listname, "[[", seq_along(obj), "]] = ", obj,
+           sep = "", collapse = "\n")
+   } else {
+     paste(listname, "$", names(obj), " = ", obj,
+           sep = "", collapse = "\n") }}
+     no1 <- 1
+     
+     #Create a custom color scale
+#color_map <- setNames(c25, choicel)
+myColoursPos <- rep(c("#c9daf2","#b8d7f4","#b0daf7","#a4dafa","#97dafc", "#8ecffc","#84c3fb","#7bb7fb","#76b1fb","#71abfa",
+               "#669fee","#5b92e2","#5086d6","#4479ca","#2d60b2","#2253a6","#16469a", 
+               "#244792","#324889","#404981","#47497d","#4e4978"),times=50)
+myColoursNeg <- rep(c("#e3a1d2","#cd76b5","#c260a6","#bd559f","#b74a97","#ab4089","#9f357a","#87215d","#7b174f","#6e0c40"), times=50)
+
+
+names(myColoursPos) = as.character(1:length(myColoursPos))
+names(myColoursNeg) = as.character(-length(myColoursNeg):-1)
+myColours = c(myColoursPos, myColoursNeg)
+# convert following columns to numeric
+columns_to_numeric <- c("Estimated_client_revenue", "Actual_client_revenue", "Approved_client_revenue",
+                        "Estimated_resource_cost", "Actual_resource_cost", "Approved_resource_cost")
+VCA_Margins[columns_to_numeric] <- sapply(VCA_Margins[columns_to_numeric], as.numeric)
+VCA_Margins[columns_to_numeric][is.na(VCA_Margins[columns_to_numeric])] <- 0
+
+viewByChoices <- c("Outlet Name" = "outlet_name",
+                   "Client" = "Client",
+                   "Worker" = "actual_worker")
+
+
+     
+   
+```  
+
+
+
+```{r,  message=FALSE, warning=FALSE}
+
+
+#values <- reactiveValues()
+#reactive({ values$theurl <- invisible( session$clientData$url_search) })    
+
+
+
+
+shinyApp(ui=   
+   #  fluidPage(    #useWaiter #waiter_preloader(spin_fading_circles(), image = url),
+     bs4DashPage(
+   
+  
+       bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
+          skin = "light", status = "white", border = FALSE,compact = TRUE, sidebarIcon = shiny::icon("chart-line"),
+          controlbarIcon = shiny::icon("chart-line"),  fixed = FALSE),
+       
+       bs4DashSidebar( width = "0px",  disable = TRUE
+         #controlbar = NULL,disable = FALSE,width = NULL, skin = "light",status = "white",
+         # elevation = 4,  collapsed = TRUE,    expandOnHover = FALSE,  #fixed = TRUE,  id = NULL, customArea = NULL
+          ) ,
+       
+      bs4DashBody(id = "Out of the FOG",
+         use_theme(create_theme(  bs4dash_status(  primary = "#1117FB",warning = "#14F82F",
+           success = "#17EAF5" ,danger = "#7B0FE7" ) )), 
+                      #,info = NULL,  warning = NULL, danger = NULL, dark = NULL
+         
+                   
+        tags$head(tags$style(HTML('
+          .main-header .logo{font-family:"Georgia",Times,"Times New Roman", 
+                    serif;font-weight: bold;font-size: 24px;}'))),
+        
+        tags$style(' 
+      
+        #--Buttons -----    
+          .buttons { margin: 2%;width = "100%";text-align: center; font-size: 30px;}
+          .btn-hover { width: 100px;font-size:20px;font-weight: 300;color: #fff;cursor: pointer;
+                margin: 1px; height: 40px; text-align:center;border: none;background-size: 300% 100%;
+                border-radius: 50px; moz-transition: all .4s ease-in-out;-o-transition: all .4s ease-in-out;
+                -webkit-transition: all .4s ease-in-out; transition: all .4s ease-in-out; }
+          .btn-hover:hover {background-position: 100% 0; moz-transition: all .4s ease-in-out;
+                -o-transition: all .4s ease-in-out;-webkit-transition: all .4s ease-in-out;
+                transition: all .4s ease-in-out; }
+          .btn-hover:focus { outline: none;}
+          .btn-hover.color-1 { background-image: linear-gradient(to right, #25aae1, #40e495, #30dd8a, #2bb673);
+                box-shadow: 0 4px 15px 0 rgba(49, 196, 190, 0.75); color:"white"  ;}
+          .btn-hover.color-2 { background-image: linear-gradient(to right, #f5ce62, #e43603, #fa7199, #e85a19);
+                box-shadow: 0 4px 15px 0 rgba(229, 66, 10, 0.75); color:"white";}
+          .btn-hover.color-3 {background-image: linear-gradient(to right, #667eea, #764ba2, #6B8DD6, #8E37D7);
+                box-shadow: 0 4px 15px 0 rgba(116, 79, 168, 0.75); color:"white"; }
+          .btn-hover.color-4 { background-image: linear-gradient(to right, #fc6076, #ff9a44, #ef9d43, #e75516);
+                box-shadow: 0 4px 15px 0 rgba(252, 104, 110, 0.75);color:"white"; }
+          .btn-hover.color-5 { background-image: linear-gradient(to right, #0ba360, #3cba92, #30dd8a, #2bb673);
+                box-shadow: 0 4px 15px 0 rgba(23, 168, 108, 0.75);color:"white"; }
+          .btn-hover.color-6 { background-image: linear-gradient(to right, #009245, #FCEE21, #00A8C5, #D9E021);
+                box-shadow: 0 4px 15px 0 rgba(83, 176, 57, 0.75);color:"white"; }
+          .btn-hover.color-7 { background-image: linear-gradient(to right, #6253e1, #852D91, #A3A1FF, #F24645);
+                box-shadow: 0 4px 15px 0 rgba(126, 52, 161, 0.75);color:"white"; }
+          .btn-hover.color-8 {background-image: linear-gradient(to right, #29323c, #485563, #2b5876, #4e4376);
+                box-shadow: 0 4px 15px 0 rgba(45, 54, 65, 0.75);color:"white";}
+          .btn-hover.color-9 {background-image: linear-gradient(to right, #25aae1, #4481eb, #04befe, #3f86ed);
+                box-shadow: 0 4px 15px 0 rgba(65, 132, 234, 0.75);color:"white"; }
+          .btn-hover.color-10 { background-image: linear-gradient(to right, #ed6ea0, #ec8c69, #f7186a , #FBB03B);
+                box-shadow: 0 4px 15px 0 rgba(236, 116, 149, 0.75);color:"white";}
+          .btn-hover.color-11 { background-image: linear-gradient(to right, #eb3941, #f15e64, #e14e53, #e2373f); 
+                   box-shadow: 0 5px 15px rgba(242, 97, 103, .4);color:"white";}
+           '),
+   
+     # bs4DashSidebar(  skin = "light",inputId = "sidebarState",   
+          #    sidebarMenu(id = "sidebar",
+          #      menuItem( text = "Tab 1",  tabName = "tab1",  icon = icon("shuttle-van")  ),
+           #     menuItem( text = "Tab 2", tabName = "tab2", icon = icon("space-shuttle"), selected = TRUE ),
+           #     menuItem( text = "Item List 1", icon = icon("bars"),startExpanded = TRUE,
+            #      menuSubItem(text = "Item 3",tabName = "tab3", icon = icon("circle-thin")),
+            #      menuSubItem(text = "Item 4",tabName = "tab4", icon = icon("circle-thin")) ))),     
+  
+
+ 
+          
+ #####################-Clients-#####################################################------------   
+
+   bs4Card(  id = "OurClients",  # type = 1,   imageElevation = 4,  # height = "40px",
+            title = userDescription(  title = span("Our Clients", style ="font-size: 30px; color: white" ) , 
+                  # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Clients.png?csf=1&web=1&e=iegsZp"), status = "primary",
+            # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
+            #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
+            closable = FALSE ,width = 12,  solidHeader = TRUE, collapsible = TRUE,  #height = "100%", 
+            maximizable	= TRUE ,collapsed =  TRUE,  maximized	= FALSE,   elevation = 4 ,overflow = TRUE,titleWidth = 5, 
+          
+          bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
+          skin = "light", status = "white", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
+            controlbarIcon = shiny::icon("filter"),  fixed = TRUE),
+          
+          bs4DashControlbar ( br(),  br(),  br(),  br(),  br(), br(),
+              "Filters and Selections ", disable = FALSE,width = 250,skin = "light", status = "white",
+            elevation = 6,   collapsed = TRUE ,  minified = FALSE,  expandOnHover = TRUE, startOpen = FALSE, opacity = 0,
+            bs4Card( width = 12, elevation = 5,
+            selectInput('x','Timeframe:',choices = c("Service month" = "Service_month" ),selected = "Service_month"),
+            selectInput('y', 'Values:', choices = c( "Revenue" = "Expended", "Number of Active Clients" = "Client" , 
+                    "Service Hours" = "Qty",   "Average Unit Price" = "Unit_price","Average Age" = "Age"),
+                    selected = "Expended"),
+            selectInput('l', 'Filters and Groups', 
+                  choices = c( "Outlet" = "outlet_name", "Perferred Language" = "Preferred_language",
+                    "Gender" = "Gender", "ATSI" = "ATSI","Age Bands" = "AgeBands",
+                    "Country of Birth" = "Country_of_birth", "Ethnic status" = "Ethnic_status",
+                    "Marital status" = "Marital_status"),  selected = "outlet_name"),
+
+            sliderInput( "Timeframe",label = h6("Alter the Service Month start and/or end :"),
+                 min = servicemonthmin,
+                 max = servicemonthmax ,
+                 value = c(servicemonthmin, servicemonthmax) ,step = 20,
+                 animate =  animationOptions(interval = 50, loop = TRUE)) ,
+
+            pickerInput(
+                inputId = "SelectClient", label = "Select or Search for Clients:", 
+                selected = unique(VCA_Clients_actuals_monthly$Client),
+                choices = unique(VCA_Clients_actuals_monthly$Client),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,'style' = "btn-hover color-1" ,
+                    liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                choicesOpt = list(style = rep(('color: "black";
+                      box-shadow: 0 4px 15px 0 rgba(49, 196, 190, 0.75) ;'),100)) ),
+
+            pickerInput(
+                inputId = "SelectOutlet", label = "Select or Search for Outlets:", 
+                selected = unique(VCA_Clients_actuals_monthly$outlet_name),
+                choices = unique(VCA_Clients_actuals_monthly$outlet_name),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                       'style' = "btn-hover color-2" , liveSearchStyle	 = "contains",  
+                showContent=TRUE ), choicesOpt = list(style = rep(('color: "black";
+                      box-shadow: 0 4px 15px 0 rgba(229, 66, 10, 0.75); '),100))),
+
+            pickerInput(
+                inputId = "SelectServices", label = "Select or Search for Services:", 
+                selected = unique(VCA_Clients_actuals_monthly$Service_desc),
+                choices = unique(VCA_Clients_actuals_monthly$Service_desc),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                    'style' = "btn-hover color-3" , liveSearchStyle	 = "contains",  showContent=TRUE),
+                choicesOpt = list(style = rep((' box-shadow:
+                      0 4px 15px 0 rgba(116, 79, 168, 0.75); color:"white";'),100))),
+
+            pickerInput(
+                inputId = "SelectSuburb", label = "Select or Search for Client Suburb:", 
+                selected = unique(VCA_Clients_actuals_monthly$Street_address_Suburb),
+                choices = unique(VCA_Clients_actuals_monthly$Street_address_Suburb),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                          'style' = "btn-hover color-4" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep((' box-shadow:
+                  0 4px 15px 0 rgba(252, 104, 110, 0.75);color:"white";'),100)) ),
+
+            pickerInput(
+                inputId = "SelectGender", label = "Select or Search for Gender:", 
+                selected = unique(VCA_Clients_actuals_monthly$Gender),
+                choices = unique(VCA_Clients_actuals_monthly$Gender),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                          'style' = "btn-hover color-5" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep(('box-shadow:
+                      0 4px 15px 0 rgba(23, 168, 108, 0.75);color:"white";'),100))),
+            
+            pickerInput(
+                inputId = "SelectAgeBands", label = "Select or Search for Age Bands :", 
+                selected = unique(VCA_Clients_actuals_monthly$AgeBands),
+                choices = unique(VCA_Clients_actuals_monthly$AgeBands),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
+                          'style' = "btn-hover color-1" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep(('box-shadow:
+                       0 4px 15px 0 rgba(45, 54, 65, 0.75);color:"white";'),100)) ),
+
+            pickerInput(
+                inputId = "SelectLanguage", label = "Select or Search for Preferred language:", 
+                selected = unique(VCA_Clients_actuals_monthly$Preferred_language),
+                choices = unique(VCA_Clients_actuals_monthly$Preferred_language),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                          'style' = "btn-hover color-6" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep(('box-shadow:
+                       0 4px 15px 0 rgba(83, 176, 57, 0.75);color:"white";'),100)) ),
+
+          pickerInput(
+                inputId = "SelectATSI", label = "Select or Search for ATSI status:", 
+                selected = unique(VCA_Clients_actuals_monthly$ATSI),
+                choices = unique(VCA_Clients_actuals_monthly$ATSI),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,
+                          'style' = "btn-hover color-7" , liveSearchStyle	 = "contains",  showContent=TRUE),
+                choicesOpt = list(style = rep(('box-shadow:
+                        0 4px 15px 0 rgba(126, 52, 161, 0.75);color:"white";'),100))),
+
+          pickerInput(
+                inputId = "SelectBirthCountry", label = "Select or Search for Country of birth:", 
+                selected = unique(VCA_Clients_actuals_monthly$Country_of_birth),
+                choices = unique(VCA_Clients_actuals_monthly$Country_of_birth),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
+                          'style' = "btn-hover color-8" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep(('box-shadow: 
+                         0 4px 15px 0 rgba(45, 54, 65, 0.75);color:"white";'),100))),
+
+          pickerInput(
+                inputId = "SelectEthnic", label = "Select or Search for Ethnic status:", 
+                selected = unique(VCA_Clients_actuals_monthly$Ethnic_status),
+                choices = unique(VCA_Clients_actuals_monthly$Ethnic_status),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                          'style' = "btn-hover color-9" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep(('box-shadow:
+                        0 4px 15px 0 rgba(65, 132, 234, 0.75);color:"white";'),100)) ),
+
+          pickerInput(
+                inputId = "SelectMarital", label = "Select or Search for Marital status:", 
+                selected = unique(VCA_Clients_actuals_monthly$Marital_status),
+                choices = unique(VCA_Clients_actuals_monthly$Marital_status),
+                multiple = TRUE, 
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                     'style' = "btn-hover color-10" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                choicesOpt = list(style = rep(('box-shadow: 
+                      0 4px 15px 0 rgba(236, 116, 149, 0.75);color:"white";'),100)) )
+             ) ) ,
+                                           
+          
+
+         bs4Card( width = 12,  title= span("Client Demographics ", style ="font-size: 25px; color: black;" ),elevation = 5,     
+                plotlyOutput("Demographics" ) ),
+         br(),
+         br(), 
+         bs4Card( width = 12,  title= span("Client Demographics ", style ="font-size: 25px; color: black;" ), elevation = 5, 
+                br(),
+                br(),
+                plotlyOutput("Demographicspie")),
+         br(),
+         br(),
+         bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,       
+           plotOutput("ClientRetentionAging",  height = "500px" ))  , 
+         br(),
+         br(),
+         bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,       
+                plotlyOutput("ClientCohortAging",  height = "100%")),
+         br(),
+         br(),
+         bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,      
+                plotlyOutput("ClientCohortRevenue", height = "100%")) ,
+         br(),
+         br(),
+         bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,      
+                 plotlyOutput("ClientCohortCycle",  height = "100%" )),
+                       # plotlyOutput("ClientCohortCyclemulti1",  height = "100%" ),
+                       # plotlyOutput("ClientCohortCyclemulti2",  height = "100%" ),
+                       # plotlyOutput("ClientCohortDrops",  height = "100%" ),
+                        #plotlyOutput("ClientCohortBubble",  height = "100%" )
+                    # box( title = "Cohort Drops", width = NULL, status = "primary",
+                    # div(style = 'overflow-x: scroll;overflow-y: scroll;white-space: nowrap', 
+                    # plotlyOutput("ClientCohortDrops"),
+                    # box( title = "Cohort Bubbles", width = NULL, status = "primary",
+                    # div(style = 'overflow-x: scroll;overflow-y: scroll', 
+                    # plotlyOutput("ClientCohortBubble",  height = "1800px" ,  width = "1600px" ),
+        
+         br(),
+         br(),         
+         bs4Card( width = 12,  title= span("Funding Utilisation ", style ="font-size: 25px; color: black;" ), elevation = 5,   
+              plotlyOutput("FundingUtilisation"  ,   height = "620px" )) ,                    
+                      #    reactableOutput("ClientUtiltable") , 
+         br(),
+         br(),  
+         bs4Card( width = 12,  title= span("Vacant Shifts ", style ="font-size: 25px; color: black;" ),  elevation = 5,  
+              plotlyOutput("unallocatedshifts") ) ,
+                          #    leafletOutput(outputId = "mymap"), 
+                          #this allows me to put the checkmarks ontop of the map to allow people
+                          #to view earthquake depth or overlay a heatmap
+                          # absolutePanel(top = 60, left = 20, 
+                          #      checkboxInput("markers", "Depth", FALSE),
+                          #     checkboxInput("heat", "Heatmap", FALSE)   ),
+         br(),
+         br(), 
+         bs4Card( width = 12,  title= span("Un filled shift Demand ", style ="font-size: 25px; color: black;" ),  
+             collapsibleTreeOutput('Unallocateddemandtree', height = "620px") )
+                    #plotOutput("ClientGantt"))
+                    # , DT::dataTableOutput(('filtered_plottable')) , plotlyOutput("return.plot_ly.ColorsUsed" )))
+        ), 
+             
+
+#####################-END Clients-#####################################################
+    
+          
+ #####################-Safety-#####################################################------------   
+
+   bs4Card(  id = "OurSafety",   type = 1,   imageElevation = 4,  # height = "40px",
+            title = userDescription(  title = span("Our Safety", style ="font-size: 30px; color: white" ) , 
+                  # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/safety.png?csf=1&web=1&e=jL2kDH"), status = "warning",
+            # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
+            #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
+            closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
+            maximizable	= TRUE ,collapsed =  TRUE,  maximized	= FALSE,   elevation = 4 ,
+          
+          bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
+          skin = "light", status = "white", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
+            controlbarIcon = shiny::icon("filter"),  fixed = FALSE),
+          
+          bs4DashControlbar (  br(),  br(),  br(),  br(),  br(), br(),
+              "Filters and Selections ", disable = FALSE,width = 250, skin = "light", status = "white",
+            elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE,
+             bs4Card( width = 12, elevation = 5,                                    
+          sliderInput( "Timeframesafety1",label = p("Incident dates:"),  
+            min =  mindate, max = maxdate, value = c(mindate,maxdate) ,step = 20, ticks=FALSE,
+            animate =  animationOptions(interval = 50, loop = TRUE)),
+                     
+          pickerInput(
+            inputId = "SelectSuburbSa", label = "Select or Search for Client Suburb:", 
+            selected = unique(VCA_Incidents$Street_address_Suburb),
+            choices = unique(VCA_Incidents$Street_address_Suburb),
+            multiple = TRUE,
+             options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                      'style' = "btn-hover color-4" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+            choicesOpt = list(style = rep((' box-shadow:
+              0 4px 15px 0 rgba(252, 104, 110, 0.75);color:"white";'),100)) ),
+
+          pickerInput(
+            inputId = "SelectGenderSa", label = "Select or Search for Gender:", 
+            selected = unique(VCA_Incidents$Gender),
+            choices = unique(VCA_Incidents$Gender),
+            multiple = TRUE,
+            options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                      'style' = "btn-hover color-5" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+            choicesOpt = list(style = rep(('box-shadow:
+                  0 4px 15px 0 rgba(23, 168, 108, 0.75);color:"white";'),100))),
+
+          pickerInput(
+            inputId = "SelectLanguageSa", label = "Select or Search for Preferred language:", 
+            selected = unique(VCA_Incidents$Preferred_language),
+            choices = unique(VCA_Incidents$Preferred_language),
+            multiple = TRUE,
+             options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                      'style' = "btn-hover color-6" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+            choicesOpt = list(style = rep(('box-shadow:
+                   0 4px 15px 0 rgba(83, 176, 57, 0.75);color:"white";'),100)) ),
+
+          pickerInput(
+            inputId = "SelectATSISa", label = "Select or Search for ATSI status:", 
+            selected = unique(VCA_Incidents$ATSI),
+            choices = unique(VCA_Incidents$ATSI),
+            multiple = TRUE,
+            options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,
+                      'style' = "btn-hover color-7" , liveSearchStyle	 = "contains",  showContent=TRUE),
+            choicesOpt = list(style = rep(('box-shadow:
+                    0 4px 15px 0 rgba(126, 52, 161, 0.75);color:"white";'),100))),
+
+          pickerInput(
+            inputId = "SelectBirthCountrySa", label = "Select or Search for Country of birth:", 
+            selected = unique(VCA_Incidents$Country_of_birth),
+            choices = unique(VCA_Incidents$Country_of_birth),
+            multiple = TRUE,
+             options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
+                      'style' = "btn-hover color-8" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+            choicesOpt = list(style = rep(('box-shadow: 
+                     0 4px 15px 0 rgba(45, 54, 65, 0.75);color:"white";'),100))),
+
+          pickerInput(
+              inputId = "SelectEthnicSa", label = "Select or Search for Ethnic status:", 
+            selected = unique(VCA_Incidents$Ethnic_status),
+            choices = unique(VCA_Incidents$Ethnic_status),
+            multiple = TRUE,
+             options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                      'style' = "btn-hover color-9" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+            choicesOpt = list(style = rep(('box-shadow:
+                    0 4px 15px 0 rgba(65, 132, 234, 0.75);color:"white";'),100)) ),
+                    #selectInput('thedowname', 'dow:',  multiple = TRUE, choices = thedaynos , selected = thedaynos),
+          
+          pickerInput(
+            inputId = "SelectMaritalSa", label = "Select or Search for Marital status:", 
+             selected = unique(VCA_Incidents$Marital_status),
+            choices = unique(VCA_Incidents$Marital_status),
+            multiple = TRUE, 
+             options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                 'style' = "btn-hover color-10" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
+            choicesOpt = list(style = rep(('box-shadow: 
+                  0 4px 15px 0 rgba(236, 116, 149, 0.75);color:"white";'),100)) )  )) ,
+ 
+         
+          bs4Card( width = 12,  title= span("Incidents by Weekday and Severity ", style ="font-size: 25px; color: black;" ),  
+                   elevation = 5,
+                plotOutput("safetyweekdayp" , dblclick =   dblclickOpts(id = "DblClick1", clip = FALSE)   , 
+                           height = "620px") ), 
+              
+          bs4Card( width = 12,  title= span("Safety Clock: Numer of Incidents by Hour the Incident occured  ",
+                                            elevation = 5,
+                          style ="font-size: 25px; color: black;" ),
+                  plotOutput("safetyclock", height = "620px")) , 
+                    #verbatimTextOutput("clickedweekday"),verbatimTextOutput("dblclick_info2")# ,textOutput("valfilterdf")  ) , 
+           
+          bs4Card( width = 12,title= span("Safety Radar: Incidents by type ", style ="font-size: 25px; color: black;" ),  
+                   elevation = 5,
+                  plotlyOutput("safetyweekdaytype" ,  height = "600px")), 
+       
+          bs4Card( width = 12,  title= span("Safety Donut: Incidents by % and month ",style ="font-size: 25px; color: black;" ),
+                   elevation = 5,
+                  plotlyOutput("incpieline", height = "620px")) ,  #plotlyOutput("inc2a",height = "650px"),
+          
+          bs4Card(width = 12,title= span("Starburst drilldown: Incident Severity", 
+                                         style ="font-size: 25px; color: black;" ),elevation = 5,
+                  plotlyOutput("starburst", height = "620px")),
+  
+          bs4Card( width = 12,  title= span("Kanban Safety Cross: Maximum Incident Severity by day of the month", 
+                                            style ="font-size: 25px; color: black;" ),elevation = 5,
+                  plotOutput("safetycross",  height = "500px")),
+          
+          bs4Card( width = 12,  title= span("Starburst drilldown: Incidents by Weekday ", 
+                                            style ="font-size: 25px; color: black;" ),elevation = 5,
+                  plotlyOutput("weekdaystarburst",  height = "550px")) ,
+        
+          bs4Card( width = 12,  title= span("Starburst drilldown: Incidents by Hour ", 
+                                            style ="font-size: 25px; color: black;" ),elevation = 5,
+                  plotlyOutput("hoursstarburst",  height = "550px"),
+ 
+             DT::dataTableOutput('VCA_Incidents')
+ 
+        )), 
+
+             
+
+#####################-END Safety-#####################################################
+
+   
+          
+ #####################-Workers-#####################################################------------   
+
+   bs4Card(  id = "OurWorkers",   type = 1,   imageElevation = 4,  # height = "40px",
+            title = userDescription(  title = span("Our Workers", style ="font-size: 30px; color: white" ) , 
+                  # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/workers.png?csf=1&web=1&e=YWgKVm"), status = "success",
+            # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
+            #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
+            closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
+            maximizable	= TRUE ,collapsed =  TRUE,  maximized	= FALSE,   elevation = 4 ,
+          
+          bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
+          skin = "light", status = "warning", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
+            controlbarIcon = shiny::icon("filter"),  fixed = FALSE),
+          
+          bs4DashControlbar (   br(),  br(),  br(),  br(),  br(), br(),
+              "Filters and Selections ", disable = FALSE,width = 250,skin = "light", status = "warning",
+            elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE,
+                                                
+           bs4Card( width = 12, elevation = 5,
+          selectInput('xw', 'Timeframe:', 
+                 choices = c("Shift month" = "Shift_month" ) 
+                 #  , "Service Day of the week" = "Service_dow",  "Birth Year" = "Date_of_birth")
+                 , selected = "Shift_month") ,
+            
+          selectInput('yw', 'Values:', choices = c( "Shift Hours " = "Duration_in_min" #, 
+                 # "Number of Active Clients" = "Client"  
+                  #, "Service Hours" = "Qty",   "Average Unit Price" = "Unit_price","Average Age" = "Age"
+                    ), selected = "Duration_in_min"),
+            
+          selectInput('lw', 'Filters and Groups', choices = c( "Outlet" = "outlet_name",
+                   "Perferred Language" = "Preferred_language", "Gender" = "Gender", "ATSI" = "ATSI",
+                          "Age Bands" = "AgeBands",
+                    "Country of Birth" = "Country_of_birth", "Ethnic status" = "Ethnic_status",
+                   "Marital status" = "Marital_status",  "Suburb" =  "Suburb" ),  selected =  "Outlet"),
+
+          sliderInput( "WTimeframe",label = h6("Alter the Service Month start and/or end :"),
+               min = servicemonthmin, max = servicemonthmax, 
+               value = c(servicemonthmin, servicemonthmax),step = 20,
+               animate =  animationOptions(interval = 50, loop = TRUE)) ,
+
+          pickerInput(
+                inputId = "SelectWorker", label = "Select or Search for Team Members:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Team_Member),
+                choices = unique(VCA_Worker_timesheets_monthly$Team_Member),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,'style' = "btn-hover color-1" ,
+                       liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                choicesOpt = list(style = rep(('color: "black";
+                       box-shadow: 0 4px 15px 0 rgba(49, 196, 190, 0.75) ;'),100)) ),
+          
+          pickerInput(
+                inputId = "SelectSuburbW", label = "Select or Search for Team Members Suburb:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Suburb),
+                choices = unique(VCA_Worker_timesheets_monthly$Suburb),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                    'style' = "btn-hover color-4" , liveSearchStyle	 = "contains",  showContent=TRUE ),
+                choicesOpt = list(style = rep((' box-shadow:
+                     0 4px 15px 0 rgba(252, 104, 110, 0.75);color:"white";'),100))),
+
+          pickerInput(
+                inputId = "SelectGenderW", label = "Select or Search for Gender:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Gender),
+                choices = unique(VCA_Worker_timesheets_monthly$Gender),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                   'style' = "btn-hover color-5" , liveSearchStyle	 = "contains",  showContent=TRUE   ),
+                choicesOpt = list(style = rep(('box-shadow: 
+                    0 4px 15px 0 rgba(23, 168, 108, 0.75);color:"white";'),100))  ),
+           
+          pickerInput(
+                  inputId = "SelectAgeBands", label = "Select or Search for Age Bands :", 
+                 selected = unique(VCA_Worker_timesheets_monthly$AgeBands),
+                  choices = unique(VCA_Worker_timesheets_monthly$AgeBands),
+                  multiple = TRUE,
+                  options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
+                           'style' = "btn-hover color-1" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                 choicesOpt = list(style = rep(('box-shadow:
+                 0 4px 15px 0 rgba(45, 54, 65, 0.75);color:"white";'),100)) ),
+    
+          pickerInput(
+                inputId = "SelectLanguageW", label = "Select or Search for Preferred language:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Preferred_language),
+                choices = unique(VCA_Worker_timesheets_monthly$Preferred_language),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                   'style' = "btn-hover color-6" , liveSearchStyle	 = "contains",  showContent=TRUE),
+                choicesOpt = list(style = rep(('box-shadow: 
+                    0 4px 15px 0 rgba(83, 176, 57, 0.75);color:"white";'),100))),
+
+          pickerInput(
+                inputId = "SelectATSIW", label = "Select or Search for ATSI status:", 
+                selected = unique(VCA_Worker_timesheets_monthly$ATSI),
+                choices = unique(VCA_Worker_timesheets_monthly$ATSI),
+                multiple = TRUE,
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,
+                   'style' = "btn-hover color-7" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                choicesOpt = list(style = rep(('box-shadow: 
+                     0 4px 15px 0 rgba(126, 52, 161, 0.75);color:"white";'),100))),
+
+          pickerInput(
+                inputId = "SelectBirthCountryW", label = "Select or Search for Country of birth:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Country_of_birth),
+                choices = unique(VCA_Worker_timesheets_monthly$Country_of_birth),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
+                     'style' = "btn-hover color-8" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                choicesOpt = list(style = rep(('box-shadow:
+                     0 4px 15px 0 rgba(45, 54, 65, 0.75);color:"white";'),100)) ),
+
+          pickerInput(
+                inputId = "SelectEthnicW", label = "Select or Search for Ethnic status:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Ethnic_status),
+                choices = unique(VCA_Worker_timesheets_monthly$Ethnic_status),
+                multiple = TRUE,
+                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
+                  'style' = "btn-hover color-9" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
+                choicesOpt = list(style = rep(('box-shadow: 
+                   0 4px 15px 0 rgba(65, 132, 234, 0.75);color:"white";'),100))),
+
+          pickerInput(
+                inputId = "SelectMaritalW", label = "Select or Search for Marital status:", 
+                selected = unique(VCA_Worker_timesheets_monthly$Marital_status),
+                choices = unique(VCA_Worker_timesheets_monthly$Marital_status),
+                multiple = TRUE, 
+                options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  ),
+                choicesOpt = list(style = rep(('box-shadow:
+                     0 4px 15px 0 rgba(236, 116, 149, 0.75);color:"white";'),100))))) 
+                
+
+     #   , splitLayout(plotlyOutput("WDemographics", height =  "100%")
+       #            ,plotlyOutput("WDemographicspie", height =  "100%"))
+     
+   ),        
+
+#####################-END Workers-#####################################################
+
+
+#####################-Sustainability-#####################################################------------   
+
+   bs4Card(  id = "OurBusiness",   type = 1,   imageElevation = 4,  # height = "40px",
+            title = userDescription(  title = span("Our Business", style ="font-size: 30px; color: white" ) , 
+                  # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/business.jpg?csf=1&web=1&e=S9BDnA"), status = "danger",
+            # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
+            #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
+            closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
+            maximizable	= TRUE ,collapsed = TRUE ,maximized	= FALSE,   elevation = 4 ,
+          
+          bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
+          skin = "light", status = "danger", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
+            controlbarIcon = shiny::icon("filter"),  fixed = FALSE),
+          
+          bs4DashControlbar (   br(),  br(),  br(),  br(),  br(), br(),
+              "Filters and Selections ", disable = FALSE,width = 250,skin = "light", status = "white",
+            elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE),
+          
+        
+                
+          bs4Card( width = 12,  title= span("Margin Bands: Starburst Drilldown ", 
+                                            style ="font-size: 25px; color: black;" ),elevation = 5,
+                  plotlyOutput("marginstarburst",  height = "550px")),
+          
+          bs4Card( width = 12,  title= span("Margins", 
+                                            style ="font-size: 25px; color: black;" ),elevation = 5,
+                  plotlyOutput("Margins",  height = "550px"))
+          
+          )
+
+
+#####################-END Sustainability-#####################################################
+
+))   ,  # End UI Dash page
+
+
+
+#-*******************************************************************************************************
+server = function(input, output,session) {
+  
+   # thelocs <- reactive({
+   #    query <- parseQueryString(values$theurl)
+    #  if(!is.null(query$location)){
+    #    unlist(strsplit(query[['location']], ",")) } else { 'all' } 
+    #  }) 
+    
+    # thepersona <- reactive({
+   #    query <- parseQueryString(values$theurl)
+   #   if(!is.null(query$persona)){
+   #     unlist(strsplit(query[['persona']], ",")) } else { 'all' } 
+   #   }) 
+ 
+ # observe_helpers(  help_dir = "helpfiles", withMathJax = FALSE)
+  
+ xselectedi <- unique( VCA_Incidents$Incident_weekday)
+        
+#------Clients Transform input values Filter, group and summarise using the transformed input values ---------------
+ 
+  lselected <- reactive({ input$l })
+  posselected  <- reactive({ if_else(input$y ==  "Unit_price"| input$y ==  "Age", "dodge" , "stack" ,"stack" ) })
+
+  yselectedorig <- reactive({ input$y })
+  
+  yselected <- reactive({  
+    case_when(input$y == "Unit_price" ~ "Unit_price_1", input$y == "Expended" ~ "Expended_2",
+              input$y == "Client" ~ "no_Clients_2",
+            input$y == "Qty" ~ "Qty_2") 
+    })
+  
+    ystatselected <- reactive({  
+    case_when( input$y == "Expended" ~ "sum",  input$y == "Client" ~ "sum", input$y == "Qty" ~ "sum") 
+      
+    }) 
+
+    
+   yaxisselected <- reactive({  
+    case_when( input$y == "Expended" ~ "Revenue", input$y == "Client" ~ "Number of Clients",
+               input$y == "Qty" ~ "Hours") 
+    }) 
+   
+    xaxisselected <- reactive({  
+    case_when(input$y == "Outlet" ~ "Location", input$y == "Expended" ~ "Revenue",
+              input$y == "Client" ~ "Number of Clients",
+            input$y == "Qty" ~ "Hours",   input$y == "Age" ~ "Age") 
+    })
+
+  xselected  <-   reactive({case_when(input$y != "aaa" ~  "Service_month") })
+  zselected <-    reactive({case_when(input$y != "aaa" ~   "outlet_name" )  })
+
+  xaxisselected  <-   reactive({case_when(input$y != "aaa" ~  "Service month") })
+  zaxisselected <-    reactive({case_when(input$y != "aaa" ~   "Location" )  })
+  
+  
+  filtered_plot <- reactive({
+
+       VCA_Clients_actuals_monthly %>% 
+          # filter ( outlet_name  %in%  thelocs() |  thelocs()  == 'all'
+               #, between (Service_month,input$Timeframe[1], input$Timeframe[2]  ),
+        #outlet_name %in% input$SelectOutlet ,
+       # Service_desc %in% input$SelectServices ,
+       # Suburb %in% input$SelectSuburb ,
+       # Gender %in% input$SelectGender ,
+       # Preferred_language %in% input$SelectLanguage ,
+       # ATSI %in% input$SelectATSI,
+        #AgeBands %in% input$SelectAgeBands,
+       # Country_of_birth %in% input$SelectBirthCountry ,
+        #Ethnic_status %in% input$SelectEthnic ,
+      # Marital_status %in% input$SelectMarital
+      #)   %>%
+       group_by(  outlet_name , Client) %>% 
+       mutate (  no_Clients =  n_distinct(Service_month, outlet_name, Client))    %>%
+      group_by( Service_month , outlet_name) %>% 
+      summarise(across(where(is.numeric),list( mean,sum)))
+     })
+
+
+
+    
+  filtered_plot_pie <- reactive({  
+     VCA_Clients_actuals_monthly %>%   #filter(Client  %in%  input$SelectClient ,
+          # outlet_name %in% input$SelectOutlet 
+          # ,    between (Service_month),input$Timeframe[1], input$Timeframe[2]  )
+          #  )     %>%
+      
+           group_by(across(.cols = c(lselected() )))   %>% 
+           summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
+               na.rm = TRUE))   %>% select ( lselected(),   yselected())   })
+  
+#------------------  print the current pie plot data --------------- for testing ------------------
+    output$filtered_plottable = DT::renderDataTable(filtered_plot_pie(), options = list(stateSave = TRUE))   
+    proxy <- dataTableProxy('filtered_plottable')
+
+
+
+#-------Clients Demographics bar Plot ----------------------------------------------- 
+       
+   output$Demographics <-  renderPlotly(   
+      { ggplotly (
+         ggplot( filtered_plot(),aes_string(x = xselected() , y = yselected(), fill= zselected()  ) ) +
+        geom_bar( stat = "summary", fun = sum,  position = "stack"       ) +
+           scale_fill_manual( name = " " , values = c25) +
+         theme( axis.text.x = element_text(angle = 45, size=6), 
+                panel.background = element_rect(fill = "white")) +
+          scale_y_continuous(labels = comma) +  
+           scale_x_date(date_breaks = "1 month", labels = date_format("%Y-%m")) + 
+        labs(  y= yaxisselected() ,  x= xaxisselected() , tooltip = "text" )
+            ,  tooltip =  "all"  
+      )       %>%   layout(hovermode = "x",
+           yaxis = list(  format = '#,.2s', tickformat = '#,.2s'  ,      hoverformat = '#,.2s') ,
+           xaxis = list(  format = "%Y-%m") )
+      }) 
+#---------Clients Demographics Pie Plot -------------------------------------------------- 
+ 
+  output$Demographicspie <- renderPlotly(  { 
+    dplot <- setNames(filtered_plot_pie(), c("labels", "values"))
+    plot_ly(dplot ) %>%
+      add_pie(  labels = ~labels,  values = ~values,  #marker = list(colors = c25) ,
+          customdata = ~labels #,#color = c25   #, inherit = TRUE
+          , textinfo='label+percent',  insidetextorientation='radial')    %>% 
+          layout(title = list(text = paste0( " % of ", 
+              names(choicey[choicey == yselectedorig()]) , " by  ", names(choicel[choicel ==lselected() ]) )
+              , x = 0.1, font=4),  
+          legend=list(title=list( text=  names(choicel[choicel == lselected()])),
+              legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")) %>%   
+          layout(hovermode = "x" )})
+  
+
+#--------------------  CLIENT Retention COHORT ------------------------------------------------
+  
+#------------ functions  
+ 
+    shiftrow <- function(v) {
+            # put a vector in, strip off leading NA values, and place that amount at the end
+            first_na_index <- min( which(!is.na(v)) )
+            # return that bit to the end,  and pad with NAs.
+            c(v[first_na_index:length(v)], rep(NA, first_na_index-1)) }
+      
+    # function: we need pretty labels.
+    pretty_print <-   # reactive ({ 
+      function(n) { case_when( n <= 1  ~ sprintf("%1.0f %%", n*100),
+                 n >  1  ~ as.character(n), TRUE    ~ " ")  }  #}) # for NA values, skip the label   
+
+
+#--------Client Cohort Analysis % over time  ---Plot------  
+      
+  output$ClientRetentionAging <-   renderPlot( { 
+      
+    Activebymonth <-  
+      VCA_Clients_actuals_monthly   %>%
+          #filter( Client %in%  input$SelectClientR , 
+         #    outlet_name %in%  input$SelectOutletR, 
+            # Service_desc %in% input$SelectServicesR ,
+          #   Street_address_Suburb %in% input$SelectSuburbR ,
+          #   Gender %in% input$SelectGenderR ,
+           #  Preferred_language %in% input$SelectLanguageR ,
+           #  ATSI %in% input$SelectATSIR,
+           #  AgeBands %in% input$SelectAgeBandsR,
+            # Country_of_birth %in% input$SelectBirthCountryR ,
+            # Ethnic_status %in% input$SelectEthnicR ,
+            # Marital_status %in% input$SelectMaritalR  )    %>% 
+      select ( Client, Service_month, Expended) %>%  # store in cohort table, get from dbdata
+      group_by(Client) %>%
+      mutate(first = min(Service_month)) %>%                # for every user, find the first period
+      group_by(first, Service_month) %>%                    # group by this first period + the other periods
+      summarise(NumClients = n_distinct(Client)) %>% # for each combination, count the number of users
+      spread(Service_month, NumClients)                          # and make columns with period names 
+                      
+             
+#--- activemonthplot -----------------
+ 
+Activebymonthplot <- 
+    data.frame(  Activebymonth = Activebymonth$first,check.rows = FALSE,
+       t(apply( select(as.data.frame(Activebymonth), 2:ncol(Activebymonth)), 1,  shiftrow )) )   
+       colnames(Activebymonthplot) <- c("Client_retention", sub("","month.",
+          str_pad(1:(ncol(Activebymonthplot)-1),2,pad = "0")))
+
+      #--- and make column names readable # first should be "cohort" and the rest week.<number>, (padded)----------
+        colnames(Activebymonthplot) <-  
+               c("Client_retention", sub("","month.", str_pad(1:(ncol(Activebymonthplot)-1),2,pad = "0"))) 
+        
+      #----Perc data ----------------------------------      
+        Client_retention_perc <-
+              data.frame( Client_retention = Activebymonthplot$Client_retention,  check.rows = FALSE,
+              Activebymonthplot[,2:nrow(Activebymonthplot)+1] / Activebymonthplot[["month.01"]] )  
+           Activebymonthplot_pct <- 
+              gather(Client_retention_perc, "Retention_age", "Percentage_of_Clients" ,2:ncol(Client_retention_perc)) 
+  
+  
+      #---abs data 
+      
+        Activebymonthplot_abs <-  
+          gather(Activebymonthplot,     "Retention_age", "Client_Count"  ,2:ncol(Activebymonthplot   ))   # }) 
+        labelnames <- 
+          c( Activebymonthplot_abs$Client_Count[1:(ncol(Activebymonthplot)-1)],
+          Activebymonthplot_pct$Percentage_of_Clients[(ncol(Activebymonthplot)):(nrow(Activebymonthplot_pct))]) 
+          labelnames  <- pretty_print(labelnames) 
+        
+      
+      #---Client Cohort Analysis % over time data 
+            Activebymonthplotdata <- data.frame(
+            Client_retention     = Activebymonthplot_pct$Client_retention,
+            Client_retention_age = Activebymonthplot_pct$Retention_age,
+            Client_retention_percentage = Activebymonthplot_pct$Percentage_of_Clients,check.rows = FALSE)
+      
+
+  ( ggplot(Activebymonthplotdata , aes(x = Client_retention_age, 
+                                       y = reorder(Client_retention, desc(Client_retention)))) +
+       geom_raster(aes(fill = Client_retention_percentage)) +
+            scale_fill_gradient(low = "red",  high = "green"
+         #   , labels = c(20, 40, 60, 80, 100),
+           #  breaks = c(20, 40, 60, 80, 100)
+            ,na.value = "white")         +
+            guides(fill=guide_colorbar(title='Retention %')) +
+      geom_text(aes(label = labelnames), color = "white",size=3) +
+            labs(x="Clients retained 'x' months after commencement", y="Client commencement month end " ) + 
+            ggtitle(paste("Client retention aging and % ( first column is number of new Clients each month ) ")) +
+            theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8), 
+            panel.background = element_rect(fill = "white")  ,plot.margin = unit(c(1,1,1,1), "cm"))    
+  ) })
+
+      
+#-----------Client Cohort Aging Analysis  Plot --------------------------------------------
+
+output$ClientCohortAging <-  renderPlotly( { 
+   Activebymonth <-    VCA_Clients_actuals_monthly   %>%  
+     #filter( Client %in%  input$SelectClientR ,  
+   #  outlet_name %in%  input$SelectOutletR ,
+   #  Service_desc %in% input$SelectServicesR , Street_address_Suburb.x %in% input$SelectSuburbR ,
+   #  Gender.x %in% input$SelectGenderR , Preferred_language.x %in% input$SelectLanguageR ,
+   #  ATSI.x %in% input$SelectATSIR,
+    # AgeBands.x %in% input$SelectAgeBandsR, Country_of_birth.x %in% input$SelectBirthCountryR ,
+    # Ethnic_status.x %in% input$SelectEthnicR , Marital_status.x %in% input$SelectMaritalR  )    %>% 
+     select ( Client, Service_month, Expended) %>%    # store in cohort table, get from dbdata
+            group_by(Client) %>%  
+        mutate(first = min(Service_month)) %>%    
+       group_by(first, Service_month) %>%              
+      summarise(NumClients = n_distinct(Client)) %>%  # for each combination, count the number of users
+      spread(Service_month, NumClients)               # and make columns with period names 
+ 
+  Activebymonthplot <-   
+    data.frame(  Activebymonth = Activebymonth$first, check.rows = FALSE,
+      t(apply( select(as.data.frame(Activebymonth), 2:ncol(Activebymonth)), 1,  shiftrow )) )   
+                      
+  Activebymonthplot <- data.frame(  # create a new dataframe, with shifted rows (and keep the first one)
+     Activebymonth = Activebymonth$first, check.rows = FALSE,
+     t(apply( select(as.data.frame(Activebymonth), 2:ncol(Activebymonth)), 1,  shiftrow ))) # 2nd column to the end
+      colnames(Activebymonthplot) <- c("Client_retention", 
+         sub("","month.", str_pad(1:(ncol(Activebymonthplot)-1),2,pad = "0")))
+                
+  Activebymonthplot_abs <- gather(Activebymonthplot, "Retention_age", "Client_Count"  ,2:ncol(Activebymonthplot ))
+      colnames(Activebymonthplot) <-  
+           c("Client_retention", sub("","month.", str_pad(1:(ncol(Activebymonthplot)-1),2,pad = "0"))) 
+            
+  Client_retention_perc <-  #----Perc data ------
+        data.frame( Client_retention = Activebymonthplot$Client_retention,  check.rows = FALSE,
+        Activebymonthplot[,2:nrow(Activebymonthplot)+1] / Activebymonthplot[["month.01"]] )  
+  Activebymonthplot_pct <- 
+        gather(Client_retention_perc, "Retention_age", "Percentage_of_Clients" ,2:ncol(Client_retention_perc)) 
+   
+  ggplotly ({
+    ( ggplot(Activebymonthplot_pct, aes(x=Retention_age, y=Percentage_of_Clients, 
+             group=Client_retention, colour=Client_retention),  
+             text= paste('</br>Retained in : ',Retention_age,'</br> Commenced in : ',Client_retention   ) ) + 
+        geom_line(size=1,alpha = 3/10 , linejoin = "round" )  +
+        #geom_point(size=1) +
+        geom_smooth(aes(group=1), method = "loess", size=3, colour="blue", se=FALSE) +
+        scale_fill_brewer(direction = -1) +
+        labs(title="Cohorts Retention ratio", tooltip = "text" ,color = "The Month Client Commenced Services" ) + 
+        labs(x="Client still active X months after Client commenced services",
+        y="% retained" ) + theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8), 
+        panel.background = element_rect(fill = "white"))) 
+    }) 
+}) 
+          # (interval( round_date(min(ymd(Service_month)), "month"),
+          # round_date(max(ymd(Service_month)), "month")) %/% months(1) ) ) %>%   
+      
+#---------Client Cohort Revenue Analysis - Data and Plot --------------------------------------------
+
+output$ClientCohortRevenue <-    renderPlotly( 
+   { ggplotly (ggplot( VCA_Funding_utilisation   %>%   # filter (
+       # Participant %in%  input$SelectClientU #,  outlet_name %in%  input$SelectOutletU ,
+        # Street_address_Suburb %in% input$SelectSuburbU ,
+        #Gender %in% input$SelectGenderU , Preferred_language %in% input$SelectLanguageU , ATSI %in% input$SelectATSIU,
+        #AgeBands %in% input$SelectAgeBandsU,
+        # Country_of_birth %in% input$SelectBirthCountryU ,
+        # Ethnic_status %in% input$SelectEthnicU , Marital_status %in% input$SelectMaritalU 
+    #) %>%  
+      mutate(Commencing_month = round_date(ymd(Commencing_date), "month"),Commencing_date = ymd(Commencing_date),
+            Latest_Service =  round_date(dmy(Latest_Service), "month")  , 
+            months_of_service = interval(  dmy(Commencing_month)  , dmy(Latest_Service))  %/% months(1)  , 
+            Avg_mth_services =  Delivered_Services / abs(months_of_service  ))  ,    
+  aes(x = Commencing_month,   y = Avg_mth_services ))  + stat_summary(fun= "mean", geom = "bar", fill = "blue")  +
+    theme_light() +  labs(x="Client commencement month", y="Average Monthly Revenue") + 
+  ggtitle(paste("Client Cohort Analysis :  Average Monthly Revenue for Clients grouped by their commencement month ")) +
+    labs(fill = "Clients grouped \n by their commencement month")  + 
+    #scale_y_continuous(labels = scales::label_number_si()) + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8), panel.background = element_rect(fill = "white") )  
+)}) 
+  
+  
+#--------Workers Transform input values Filter, group and summarise using the transformed input values-----------------
+  xselectedw <- reactive({ input$xw })
+  yselectedorigw <- reactive({ input$yw })
+  yselectedw <- reactive({ paste0(input$yw, 
+       case_when(input$yw == "Duration_in_min" ~ "_2", input$yw == "Expended" ~ "_2",input$yw == "Worker" ~ "_id_3",
+                 input$yw == "Qty" ~ "_2",   input$yw == "Age" ~ "_1") ) })
+  lselectedw <- reactive({ input$lw })
+  posselectedw  <- reactive({ if_else(input$yw ==  "Unit_price"| input$yw ==  "Age", "dodge" , "stack" ,"stack" ) })  
+  
+
+Wfiltered_plot <- reactive({  
+   VCA_Worker_timesheets_monthly %>% # filter(Team_Member  %in%  input$SelectWorker ,
+       # outlet_name %in% input$SelectOutlet ,
+       # Service_desc %in% input$SelectServices ,
+       # Suburb %in% input$SelectSuburbW ,
+       # Gender %in% input$SelectGenderW ,
+       # Preferred_language %in% input$SelectLanguageW ,
+       # ATSI %in% input$SelectATSIW,
+        #AgeBands %in% input$SelectAgeBands,
+       # Country_of_birth %in% input$SelectBirthCountryW ,
+       # Ethnic_status %in% input$SelectEthnicW ,
+       # Marital_status %in% input$SelectMaritalW ,
+       # between (ymd(Shift_month),ymd(input$WTimeframe[1]), ymd(input$WTimeframe[2])  ),na.rm = TRUE)     %>%
+        group_by(Shift_month,outlet_name)  %>%  summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
+        #group_by(Shift_month,Suburb)  %>%  summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
+          na.rm = TRUE))    })
+  
+Wfiltered_plot_pie <- reactive({  
+     VCA_Worker_timesheets_monthly %>%  # filter(Team_Member  %in%  input$SelectWorker ,
+           # outlet_name %in% input$SelectOutlet ,
+          #  between (ymd(Shift_month),ymd(input$WTimeframe[1]), ymd(input$WTimeframe[2])  ))     %>%
+            group_by(input$lw)  %>%  summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
+               na.rm = TRUE))   %>% select ( lselectedw(),   yselectedw())   })
+  
+#print the current pie plot data --------------- for testing ------------------
+    #  output$Wfiltered_plottable = DT::renderDataTable(Wfiltered_plot_pie(), options = list(stateSave = TRUE))   
+    #  proxy <- dataTableProxy('Wfiltered_plottable')
+
+   
+#---------------Worker Demographics bar Plot -----------------------------------------------
+
+  output$WDemographics <- renderPlotly(  
+    {ggplotly (
+       ggplot(Wfiltered_plot() ,aes_string(x = xselectedw(), y= yselectedw(), fill= lselectedw()), 
+              text= paste('</br> ',xselectedw(),'</br> ',yselectedorigw() ,'</br> ',lselectedw()  )) +
+     geom_col( position = posselectedw() )  +   scale_fill_manual( name = " " , values = color_map) +
+     theme( axis.text.x = element_text(angle = 90, hjust = 1,size=8), panel.background = element_rect(fill = "white")) +
+     labs(  x=  names(choicexw[choicex == xselectedw()]), y=  names(choiceyw[choiceyw == yselectedorigw()]) ,
+     title = paste0( " Worker Demographics:  ", names(choiceyw[choicey == yselectedorigw()]) , " for each   "  ,
+        names(choicelw[choicel ==  lselectedw() ]) , " by  " , names(choicexw[choicex ==  xselectedw() ])  ) ,
+     tooltip = "text") , dynamicTicks = TRUE  )  %>%   layout(hovermode = "x" )  %>% 
+        layout(legend=list(title=list( text=  names(choicelw[choicelw == lselectedw()])),
+         legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")   )})   
+
+ 
+   
+#---------------Unallocated shifts  bar Plot -----------------------------------------------
+
+  output$WDemographics <- renderPlotly(  
+    {ggplotly (
+       ggplot(Wfiltered_plot() ,aes_string(x = xselectedw(), y= yselectedw(), fill= lselectedw()), 
+              text= paste('</br> ',xselectedw(),'</br> ',yselectedorigw() ,'</br> ',lselectedw()  )) +
+     geom_col( position = posselectedw() )  +   scale_fill_manual( name = " " , values = color_map) +
+     theme( axis.text.x = element_text(angle = 90, hjust = 1,size=8), panel.background = element_rect(fill = "white")) +
+     labs(  x=  names(choicexw[choicex == xselectedw()]), y=  names(choiceyw[choiceyw == yselectedorigw()]) ,
+     title = paste0( " Worker Demographics:  ", names(choiceyw[choicey == yselectedorigw()]) , " for each   "  ,
+        names(choicelw[choicel ==  lselectedw() ]) , " by  " , names(choicexw[choicex ==  xselectedw() ])  ) ,
+     tooltip = "text") , dynamicTicks = TRUE  )  %>%   layout(hovermode = "x" )  %>% 
+        layout(legend=list(title=list( text=  names(choicelw[choicelw == lselectedw()])),
+         legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")   )})   
+
+
+#--------------Worker Demographics Pie Plot -------------------------------------------------- 
+ 
+  output$WDemographicspie <- renderPlotly(  { 
+    Wdplot <- setNames(Wfiltered_plot_pie(), c("labels", "values"))
+    plot_ly(Wdplot ) %>%
+      add_pie( labels = ~labels,  values = ~values, 
+        customdata = ~labels ,   ##color = c25   #, inherit = TRUE #marker = list(colors = c25) ,
+        textinfo='label+percent',  insidetextorientation='radial')    %>% 
+        layout(title = list(text = paste0( " Worker Demographics:  % of ", 
+          names(choiceyw[choiceyw == yselectedorigw()]) ,
+          " by  " , names(choicelw[choicelw ==  lselectedw() ]) )  , x = 0.1, font=4),
+        legend=list(title=list( text=  names(choicelw[choicelw == lselectedw()])),
+          legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")) %>%   
+        layout(hovermode = "x" )})
+  
+  
+#-----------Services Transform input values Filter, group and summarise using the transformed input values -------------
+    xselecteds <- reactive({ input$xs })
+    yselectedorigs <- reactive({ input$ys })
+    yselecteds <- reactive({ paste0(input$ys, 
+     case_when(input$ys == "Actual_hours" ~ "_2", input$ys == "Approved_hours" ~ "_2",input$ys == "Worker" ~ "_id_3",
+               input$ys == "Estimated_client_cost" ~ "_2", input$ys == "Actual_client_cost" ~ "_2",
+               input$ys == "Estimated_resource_cost" ~ "_2", input$ys == "Actual_resource_cost" ~ "_2",
+               input$ys == "Kilometers" ~ "_2",   input$ys == "Age_client" ~ "_1") ) })
+    lselecteds <- reactive({ input$ls })
+    posselecteds  <- reactive({ 
+        if_else(input$ys ==  "Unit_price"| input$ys ==  "Age_client", "dodge" , "stack" ,"stack" ) })  
+      
+#--------------- Services   ---------------
+  Sfiltered_plot <- reactive({  
+    VCA_Services_actuals_monthly %>%  filter(Team_Member  %in%  input$SelectWorkers ,
+          Outlet_name %in% input$SelectOutlets ,
+          Service_desc %in% input$SelectServicess ,
+          Suburb %in% input$SelectSuburbs ,
+          Gender %in% input$SelectGenders ,
+          Preferred_language_Client %in% input$SelectLanguages ,
+          ATSI %in% input$SelectATSIs,
+          AgeBands_Worker %in% input$SelectAgeBands,
+          Country_of_birth %in% input$SelectBirthCountrys ,
+          Ethnic_status %in% input$SelectEthnics ,
+          Marital_status %in% input$SelectMaritals ,
+          between (dmy(Shift_month),dmy(input$sTimeframe[1]), dmy(input$sTimeframe[2])  ))     %>%
+          group_by(input$xs,input$ls)  %>%  summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
+            na.rm = TRUE))    })
+
+  Sfiltered_plot_pie <- reactive({  
+       VCA_Services_actuals_monthly %>%   filter(Team_Member  %in%  input$SelectWorkers ,
+          Outlet_name %in% input$SelectOutletss ,
+          between (dmy(Shift_month),dmy(input$sTimeframe[1]), dmy(input$sTimeframe[2])  ))     %>%
+          group_by(input$ls)  %>%  summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
+             na.rm = TRUE))   %>% select ( lselecteds(),   yselecteds())   })
+  
+        # --------------- for testing ------------------print the current pie plot data
+            #  output$Wfiltered_plottable = DT::renderDataTable(Wfiltered_plot_pie(), 
+            #  options = list(stateSave = TRUE))   
+            #  proxy <- dataTableProxy('Wfiltered_plottable')
+
+
+#------------------Services Demographics bar Plot -----------------------------------------------
+
+output$SDemographics <- renderPlotly(  
+  {ggplotly (
+     ggplot(Sfiltered_plot() ,aes_string(x = xselectedw(), y= yselectedw(), fill= lselectedw()), 
+            text= paste('</br> ',xselectedw(),'</br> ',yselectedorigw() ,'</br> ',lselectedw()  )) +
+   geom_col( position = posselectedw() )  +   scale_fill_manual( name = " " , values = color_map) +
+   theme( axis.text.x = element_text(angle = 90, hjust = 1,size=8), 
+          panel.background = element_rect(fill = "white")) +
+   labs(  x=  names(choicexw[choicex == xselectedw()]), y=  names(choiceyw[choiceyw == yselectedorigw()]) ,
+   title = paste0( " Services Demographics:  ", names(choiceyw[choicey == yselectedorigw()]) , " for each   " 
+        , names(choicelw[choicel ==  lselectedw() ]) , " by  " , names(choicexw[choicex ==  xselectedw() ])  ) ,
+   tooltip = "text") , dynamicTicks = TRUE  )  %>%   layout(hovermode = "x" )  %>% 
+      layout(     legend=list(title=list( text=  names(choicelw[choicelw == lselectedw()])),
+        legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right"))})   
+
+ 
+#--------------Services Demographics Pie Plot -------------------------------------------------- 
+ 
+output$SDemographicspie <- renderPlotly(  { 
+  Wdplot <- setNames(Wfiltered_plot_pie(), c("labels", "values"))
+  plot_ly(Wdplot ) %>% add_pie(   labels = ~labels,  values = ~values, 
+    customdata = ~labels ,   ##color = c25   #, inherit = TRUE #marker = list(colors = c25) ,
+    textinfo='label+percent',  insidetextorientation='radial')    %>% 
+    layout(title = list(text = paste0( " Worker Demographics:  % of ", 
+        names(choiceyw[choiceyw == yselectedorigw()]) ,
+        " by  " , names(choicelw[choicelw ==  lselectedw() ]) )  , x = 0.1, font=4),
+    legend=list(title=list( text=  names(choicelw[choicelw == lselectedw()])),
+           legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")) %>%   
+    layout(hovermode = "x" )})
+  
+    
+#----------------Services Margins -----------------------------------------------
+
+output$SMargins <- renderPlotly(  
+    {ggplotly (  ggplot(VCA_Services_actuals_monthly  %>% 
+     group_by(Shift_month,Service_name)
+    ,
+        aes(x = Shift_month, y= Approved_client_cost,fill= Service_name)) +
+       geom_line(stat="sum")  +   
+       theme(axis.text.x = element_text(angle = 90,hjust = 1,size=8), panel.background = element_rect(fill = "white")) +
+       labs(   title = " Services Margins   " )     )}) 
+    
+
+
+#--------circular bar plot-------------------------------------- 
+
+catg <- c("A", "B", "C", "D", "F", "G")
+percent <- c(88, 76, 72, 69, 59, 48)
+category <- paste (catg, "-", percent, "%", sep = "")
+myd <-data.frame(category,percent)
+
+# converting to factor and applying to 
+#levels to set proper order of bars 
+#Utilisation_to_date  Participant outlet_name  Funding_Current
+
+#VCA_Funding_utilisation$category <-factor(myd$category,levels=rev(myd$category))
+  #fund <-   reactive({ VCA_Funding_utilisation  %>% filter (
+  #   Participant %in%  input$SelectClientU ,  outlet_name %in%  input$SelectOutletU ,
+  #   Street_address_Suburb %in% input$SelectSuburbU ,
+  #   Gender %in% input$SelectGenderU , Preferred_language %in% input$SelectLanguageU ,
+  #   ATSI %in% input$SelectATSIU,
+  #   AgeBands %in% input$SelectAgeBandsU, Country_of_birth %in% input$SelectBirthCountryU ,
+  #   Ethnic_status %in% input$SelectEthnicU , Marital_status %in% input$SelectMaritalU   )
+  #})
+
+ggplot(  VCA_Funding_utilisation ,aes(x = outlet_name, y = Utilisation_to_date,fill = outlet_name)) +
+   geom_bar(width = 0.85, stat="identity") + coord_polar(theta = "y") +xlab("") + ylab("") +
+   ylim(c(0,100)) +  ggtitle("Package Utilisation ") +
+   geom_text( aes(x = outlet_name, y = 0, label = outlet_name) , hjust = 1, size = 3) +   theme_minimal() +
+   #scale_fill_manual(values = c("red1","red4", "green1", "green4", "blue1", "blue4")) +
+   theme(legend.position = "none",panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank(), axis.line = element_blank(),
+         axis.text.y = element_blank(),  axis.text.x = element_blank(), axis.ticks = element_blank())
+
+
+#Client Plan ------------------------------------------------   
+      
+#VCA_Client_Budget_view  Client  Location fund_start_tm  fund_end_tm BUdget planned expended total available 
+#percent2 active_yn case_current_status funding_type
+
+#df <- read.csv("https://cdn.rawgit.com/plotly/datasets/master/GanttChart-updated.csv",    stringsAsFactors = F)
+
+#df$Start  <- as.Date(df$Start, format = "%m/%d/%Y")
+#client    <- "Sample Client"
+#cols      <- RColorBrewer::brewer.pal(length(unique(df$Resource)), name = "Set3")
+#df$color  <- factor(df$Resource, labels = cols)
+
+#plot_ly(VCA_Client_Budget_view ) +
+# add_trace(  x = c(dmy(fund_start_tm),dmy(fund_start_tm) + df$Duration[i]),   y = c(i, i), 
+# mode = "lines",line = list(color = df$color[i], width = 20),showlegend = F,
+# hoverinfo = "text", text = paste("Task: ", df$Task[i], "<br>", "Duration: ", df$Duration[i], "days<br>",
+# "Resource: ", df$Resource[i]), evaluate = T )
+
+
+#-----------------Client Plan Gantt ------------------------------------------------  
+#reactive({ 
+#cg <- VCA_Client_Budget_view  %>%  filter( Client == "Nigel Garson" )  %>%  #%in%  input$SelectClientgantt  )  
+      # ,outlet_name %in%  input$SelectOutletU ,
+      # Service_desc %in% input$SelectServicesU , Street_address_Suburb %in% input$SelectSuburbU ,
+ # Gender %in% input$SelectGenderU , Preferred_language %in% input$SelectLanguageU , ATSI %in% input$SelectATSIU,
+      # AgeBands %in% input$SelectAgeBandsU, Country_of_birth %in% input$SelectBirthCountryU ,
+      # Ethnic_status %in% input$SelectEthnicU , Marital_status %in% input$SelectMaritalU  ) %>% 
+ # select (location , Client , fund_start_tm  , find_end_tm ) %>% 
+#  mutate(wp = location, activity = Client,start_date = dmy( fund_start_tm ),end_date = dmy( find_end_tm )) #})
+ # output$ClientGantt <-    renderPlot( 
+    #{ ggplotly ( 
+     # ganttrify(project = cg #,
+          #spots =cg,
+         # by_date = TRUE ,# alpha = 1 #,
+         # exact_date = TRUE,
+         #size_text_relative = 1.2 #,
+         # month_number_label = TRUE
+ #  ))
+#
+  
+#----------------Client Plans Utilisation table------------------------------------------------    
+#https://glin.github.io/reactable/articles/examples.html#filtering
+
+sticky_style <- list(position = "sticky", left = 0, background = "#fff", zIndex = 1,
+                    borderRight = "1px solid #eee")
+  
+  # style = function(value) { if (value > 0) { color <- "#008000" } else if (value < 0) {
+  # color <- "#e00000"   } else {  color <- "#777"  } list(color = color, fontWeight = "bold")
+
+  # fund1 <- reactive ({ VCA_Funding_utilisation %>% filter ( Funding_Current != "Expired Funding" , 
+  #   Participant %in%  input$SelectClientU ,  outlet_name %in%  input$SelectOutletU ,
+  #   Street_address_Suburb %in% input$SelectSuburbU ,
+  #   Gender %in% input$SelectGenderU , Preferred_language %in% input$SelectLanguageU , ATSI %in% input$SelectATSIU,
+  #   AgeBands %in% input$SelectAgeBandsU, Country_of_birth %in% input$SelectBirthCountryU ,
+  #   Ethnic_status %in% input$SelectEthnicU , Marital_status %in% input$SelectMaritalU   ) %>%   select ( 
+  #   Participant ,X..not.planned.to.spend 
+  #   ,percent_through  ,Utilisation_to_date ,Utilisation_total_planned ,
+  #   Percent_available   , Funding_from   ,Funding_To  , Budget  , Total_services 
+  #   ,Planned_services  ,Delivered_Services  ,Available_balance  ,  Credits,  Planned_funding_review  , 
+  #   Debtor  ,Funding  ,Funding_type_name   ,Fund_package    ,X..utilisation.total.planned
+  #   ,Case_file_Funding  ,Funding_Source_Package ,Funding_Status  ,funding_type,Commencing_date, Planned_date_of_exit 
+  #   ,Funding_Status    , Funding_Current  ,  outlet_name  ,Case_coordinator   ) %>%   mutate (
+  #   Utilisation_to_date = Utilisation_to_date * 100.00, percent_through = percent_through * 100.00 ,
+  #   Percent_available = Percent_available,Utilisation_total_planned = X..utilisation.total.planned * 100.00  #)}) 
+ 
+  
+output$ClientUtiltable <- renderReactable({
+    reactable( VCA_Funding_utilisation %>%   filter(
+            Funding_Current  %in%  input$SelectCurrentFundingCF ,
+            Participant  %in%  input$SelectClientCF ,
+            outlet_name %in% input$SelectOutletCF ,
+            Funding_type_name %in% input$SelectServicesCF ,
+            Street_address_Suburb %in% input$SelectSuburbCF ,
+            Gender %in% input$SelectGenderCF , 
+            Preferred_language %in% input$SelectLanguageCF ,
+            ATSI %in% input$SelectATSICF,
+              #AgeBands %in% input$SelectAgeBandsCF,
+            Country_of_birth %in% input$SelectBirthCountryCF ,
+            Ethnic_status %in% input$SelectEthnicCF ,
+            Marital_status %in% input$SelectMaritalCF ,
+            dmy(Funding_from) >= ymd(input$TimeframeCF[1]), 
+            dmy(Funding_To) <= ymd(input$TimeframeCF[2])  )    %>%    
+            select (  Participant ,X..not.planned.to.spend 
+   ,percent_through  ,Utilisation_to_date ,Utilisation_total_planned ,
+    Percent_available   , Funding_from   ,Funding_To  , Budget  , Total_services 
+    ,Planned_services  ,Delivered_Services  ,Available_balance  ,  Credits,  Planned_funding_review  , 
+    Debtor  ,Funding  ,Funding_type_name   ,Fund_package    ,X..utilisation.total.planned
+    ,Case_file_Funding  ,Funding_Source_Package ,Funding_Status  ,funding_type, Commencing_date , Planned_date_of_exit 
+    ,Funding_Status    , Funding_Current  ,  outlet_name  ,Case_coordinator   ) %>%   mutate (
+    Utilisation_to_date = Utilisation_to_date * 100.00, percent_through = percent_through * 100.00 ,
+    Percent_available = Percent_available,Utilisation_total_planned = X..utilisation.total.planned * 100.00  ) ,
+    defaultColDef = colDef(minWidth = 120),  # columns = list(extra = colDef( ) ), 
+    columns = list(  Funding_Current = colDef(name = "Funding Current",   style = sticky_style)   , 
+    Participant  = colDef( name = " Participant" , style = sticky_style)  ,outlet_name  = colDef( name = "Outlet"   ) 
+    ,Case_coordinator   = colDef( name = "Coordinator"   ) ,Percent_available = colDef( name = "% available"  ,
+    format = colFormat(suffix = "%", separators = TRUE, digits = 2)  )  
+    ,X..not.planned.to.spend = colDef(name = "$ Planed Under(+) \n Over(-) spend",
+    forma = colFormat(prefix = "$",separators =TRUE, digits = 0) )
+    ,Utilisation_total_planned=colDef(name="% Utilisation Planned",   class = "tag",
+    style = function(value) { if (value > 80 && value < 120  )
+    { "background-image: linear-gradient(to right, #25aae1, #40e495, #30dd8a, #2bb673);
+        box-shadow: 0 4px 15px 0 rgba(49, 196, 190, 0.75); color:#ffffff  ;" }
+        else { " background-image: linear-gradient(to right, #ed6ea0, #ec8c69, #f7186a , #FBB03B);
+        box-shadow: 0 4px 15px 0 rgba(236, 116, 149, 0.75); color:#ffffff  ;" } },
+        format=colFormat(suffix="%",separators=TRUE,digits =2))
+    ,percent_through = colDef( name = "% time through this plan" ,
+    format=colFormat(suffix="%",separators=TRUE,digits =2)) 
+    ,Utilisation_to_date = colDef( name = "% Utilisation rate to date"  ,   class = "tag",
+    style = function(value) { if (value > 80 &&  value < 120) 
+      "background-image: linear-gradient(to right, #25aae1, #40e495, #30dd8a, #2bb673); box-shadow: 0 4px 15px 0 rgba(49, 196, 190, 0.75); color:#ffffff  ;" 
+      else " background-image: linear-gradient(to right, #ed6ea0, #ec8c69, #f7186a , #FBB03B);
+box-shadow: 0 4px 15px 0 rgba(236, 116, 149, 0.75); color:#ffffff  ;" },
+     format=colFormat(suffix="%",separators=TRUE,digits =2))  
+    ,Budget = colDef( name = "Budget" ,format = colFormat(prefix = "$", separators = TRUE, digits = 0)  ) 
+    ,Credits = colDef( name = "Credits"  ,format = colFormat(prefix = "$", separators = TRUE, digits = 0)  ) 
+    ,Planned_services = colDef( name = "Future Rostered" ,
+    format = colFormat(prefix = "$", separators = TRUE, digits = 0)) 
+    ,Delivered_Services = colDef( name = "Delivered in this Plan" ,
+    format = colFormat(prefix = "$", separators = TRUE, digits= 0)) 
+    ,Total_services = colDef( name = "Total Delivered and Planned" ,
+    format = colFormat(prefix = "$", separators = TRUE, digits = 0)   ) 
+    ,Available_balance = colDef( name = "Available Balance" ,
+     format = colFormat(prefix = "$", separators = TRUE, digits = 2)   )  
+    ,Planned_funding_review   = colDef( name = "Planned Review" ,format = colFormat(date = TRUE)  )
+    ,Funding_from   = colDef( name = "This Plan start date" ,format = colFormat(date = TRUE)  ) 
+    ,Funding_To   = colDef( name = "This Plan end date"  ,format = colFormat(date = TRUE)  ) 
+    ,Commencing_date   = colDef( name = "Original Start date" ,format = colFormat(date = TRUE)   ) 
+    ,Debtor  = colDef( name = "Debtor"   ) 
+    ,Funding  = colDef( name = "Funding" ,   class = "tag",  style="white-space: nowrap") 
+    ,Funding_type_name   = colDef( name = "Funding type" ,  style="white-space: nowrap" )
+    ,Fund_package   = colDef( name = "Funding package"  ,  style="white-space: nowrap" ) 
+    ,Case_file_Funding  = colDef( name = "Case file funding"  ,  style="white-space: nowrap" ) 
+    ,Funding_Source_Package = colDef( name = "Funding source package" ,  style="white-space: nowrap"  ) 
+    ,Funding_Status = colDef( name = "Funding Status", show = FALSE  ) 
+    ,funding_type = colDef( name = "Funding type"   ) 
+    ,Planned_date_of_exit = colDef( name = "Planned exit date" ,format = colFormat(date = TRUE)   ) 
+    ,Funding_Status = colDef(show = FALSE) ) ,
+    searchable = TRUE, filterable = TRUE, minRows = 20, 
+    paginationType = "jump", showPagination = TRUE,  pagination = TRUE,  defaultPageSize = 20,
+    borderless = TRUE   , outlined = TRUE , striped = TRUE, compact = TRUE,    fullWidth = TRUE,
+    showPageSizeOptions = TRUE, wrap = TRUE,  resizable = TRUE ) 
+})
+
+
+#------------------  Octopus collapsible tree------#  https://adeelk93.github.io/collapsibleTree/  extras
+
+   ot <-  VCA_Funding_utilisation  %>%  filter ( Funding_Current != "Expired Funding"   ) %>%   
+              select (       Participant ,X..not.planned.to.spend 
+          ,X..utilisation.total.planned ,percent_through  ,Utilisation_to_date ,Utilisation_total_planned ,
+           Percent_available   , Funding_from   ,Funding_To  , Budget  , Total_services 
+           ,Planned_services  ,Delivered_Services  ,Available_balance  ,  Credits,  Planned_funding_review  , 
+          Debtor  ,Funding  ,Funding_type_name   ,Fund_package  
+          ,Case_file_Funding  ,Funding_Source_Package ,Funding_Status  ,funding_type, Commencing_date , Planned_date_of_exit 
+          ,Funding_Status    , Funding_Current  ,  outlet_name  ,Case_coordinator   ) %>%   mutate (
+          Utilisation_to_date = Utilisation_to_date * 100.00, percent_through = percent_through * 100.00 ,
+            Percent_available = Percent_available,Utilisation_total_planned = X..utilisation.total.planned * 100.00 ,
+           X..utilisation.total.planned =  X..utilisation.total.planned * 100  ) 
+ 
+     
+       ot$percrank <-    dplyr::percent_rank(ot$Utilisation_to_date )   
+       ot$percrankcol <-    cut(ot$percrank , breaks = c(0,50,1000))
+       ot$percrankcolour <-  case_when( ot$percrank == 0 ~ "Bronze" , ot$percrankcol == "(0,0.5]" ~ "silver" ,
+                                     ot$percrankcol == "(0.5,1]" ~ "gold" ) 
+            # Use unsplash api to add in random photos to tooltip
+       ot$tooltip <-    paste0(  ot$Participant,  "<br>Outlet: ",  #ot$outlet_name ,
+                                            "<br>Coordinator: ", ot$Case_coordinator , 
+                              "<br><img src='https://source.unsplash.com/collection/385548/150x100'>" )
+
+        
+ output$coltree <- renderCollapsibleTree (
+ 
+    collapsibleTree( ot,   hierarchy=c( "outlet_name",  "Case_coordinator", "Participant", "Utilisation_to_date"), 
+        root = "Client Utilisation",inputId = NULL,attribute = "Utilisation_to_date"  ,aggFun = mean  , 
+            #  fill=  "steelblue" # c( #The root
+            # "#7927b2" ,
+            #  level 1 
+            #  rep("#fb3182"), #length(unique(ot$outlet_name)) ),
+            # Level 2
+            #  rep("lightblue"),
+            # Level 2...plus other levels before the one before the value level
+            # rep("steelblue") # ,
+            #, (length(unique(paste(ot$outlet_name,ot$Case_coordinator, ot$Participant))))
+            #   ot$percrankcolour,
+            # level above the final value level 
+            #   ot$percrankcolour )
+            #       , 
+        fillByLevel = TRUE, linkLength = NULL,   fontSize = 15, nodeSize = "Utilisation_to_date" ,
+        tooltip = TRUE, collapsed = TRUE,   tooltipHtml = "tooltip",
+        zoomable = TRUE, width = NULL, height = NULL) 
+ )
+
+#not used yet ---Client Funding ------------------------------------------------
+  
+    output$plot4 <- renderPlotly(
+    {ggplotly (
+      ggplot(VCA_Client_Budget_view, aes( x=case_curent_status, y=budget, fill=location,colour = location ,
+           text= paste('</br>Funding Start: ',fund_start_tm, '</br>Funding End: ',find_end_tm,
+               '</br>Participant: ',Client, '</br>Fundincg: ', funding_type   ))) + 
+        geom_point(  na.rm = TRUE,size = 7)  +
+        scale_color_viridis_d()  +  scale_y_continuous("budget", labels = NULL) +
+        ggtitle("Visicase Analytics",subtitle = "Client Plan Status")  +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8),legend.position="bottom") # , dynamicTicks = TRUE  
+        ) %>%  layout(hovermode = "x") 
+                    #%>% rangeslider(filtered_plot6(), aes(x=first_Timeframe),start=max(~first_Timeframe)) 
+          })
+            # scale_color_gradient2(low = 'blue', mid = 'white', high = 'red') +
+            # stat_summary(aes(x=Commencing_date, y=value),fun="sum",
+            # inherit.aes = 'FALSE',na.rm = TRUE, geom ='line') +
+            # scale_x_date(name="Funding Start",breaks = "1 month", date_labels = "%Y-%m") +
+            # theme(text = element_text(size = 12)) +
+
+
+ #not used yet ----Client Planned services------------------------------------------------
+  
+    output$plot5 <- renderPlotly(
+      
+     # VCA_Actions_planned_View$Start_date <- lubridate::dmy(VCA_Actions_planned_View$Start_date)
+    {ggplotly  (  
+      ggplot(VCA_Actions_all_inc_cancel_and_planned_View, aes( x=Start_date,group=Participant, fill=Outlet_name,
+               text= paste('</br>Service Date: ',Start_date, 
+                '</br>Participant: ',Participant, '</br>Case Coordinator: ', Case_coordinator  ))) + 
+        geom_bar(na.rm = TRUE,width = 7)  +
+        scale_y_continuous("Number of Clients", labels = NULL) +
+        scale_x_date(name="Planned Service Month",breaks = "1 month", date_labels = "%Y-%m") +
+        theme(text = element_text(size = 12)) +
+        scale_color_viridis_d()  +
+        ggtitle("Visicase Analytics",subtitle = "Client Actions Planned")  +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8),legend.position="bottom") # , dynamicTicks = TRUE  
+         ) %>%  layout(hovermode = "x")
+            # %>% rangeslider(filtered_plot6(), aes(x=first_Timeframe),start=max(~first_Timeframe)) 
+    })
+  
+  
+    
+#---not used yet --- Client Funding by Coordinator ------------------------------------------------
+    
+    output$plot6 <- renderPlotly (
+    {ggplotly (
+      ggplot(VCA_Funding_utilisation, aes( x=Funding_from, y=Budget,
+         text= paste(
+            '</br>Funding Start: ',Participant,
+            '</br>Outlet: ',outlet_name,
+            '</br>Coordinator: ',Coordinator_name,
+            '</br>Commencing Date: ',Commencing_date,
+            '</br>Planned Review: ',Planned_funding_review,
+            '</br>Funding from: ',Funding_from,
+            '</br>Funding to: ',Funding_To,
+            '</br>Debtor: ',Debtor,
+            '</br>Funding: ',Funding,
+            '</br>Funding type: ',Funding_type_name,
+            '</br>Funding package: ',Fund_package,
+            '</br>Case file funding: ',Case_file_Funding,
+            '</br>Funding source package: ',Funding_Source_Package,
+            '</br>Funding Status: ',Funding_Status,
+            '</br>Funding type: ',funding_type,
+            '</br>Budget: ',Budget,
+            '</br>Credits: ',Credits,
+            '</br>Planned servcies: ',Planned_services,
+            '</br>Delivered Services: ',Delivered_Services,
+            '</br>Total Services: ',Total_services,
+            '</br>Available Balance: ',Available_balance,
+            '</br>% available: ',Percent_available,
+            '</br>$ planned underspend: ','$ not planned to spend',
+            '</br>% Utilisation total planned: ','% utilisation total planned',
+            '</br>% through the plan: ',percent_through,
+            '</br>Funding Start: ',Utilisation_to_date,
+            '</br>$ Utilisation total planned: ',Utilisation_total_planned,
+            '</br>Planned exit date: ',Planned_date_of_exit,
+            '</br>Exit details: ',Exit_details,
+            '</br>Exit reason: ',Exit_Reason)),
+       stat_summary(aes(x=Funding_from, y=Budget),fun="sum",na.rm = TRUE, geom ='point') +
+       scale_y_continuous("Budget", labels = NULL) +
+       scale_x_date(name="Funding from",breaks = "1 month", date_labels = "%Y-%m") +
+       theme(text = element_text(size = 12)) +scale_color_viridis_d()  +
+       ggtitle("Visicase Analytics",subtitle = "Client Numbers")  +
+       theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8),legend.position="bottom") # , dynamicTicks = TRUE  
+        )) %>%  layout(hovermode = "x")  #inherit.aes = 'FALSE',
+        #%>% rangeslider(filtered_plot6(), aes(x=first_Timeframe),start=max(~first_Timeframe)) 
+ })
+        
+    
+#not used yet Cancellations ------------------------------------------------    
+    
+ output$plot7 <- renderPlot (
+    #{ggplotly (   
+       #ggplot(data = VCA_Cancellations_View, aes(x = cancel_type, fill = Case_coordinator)) 
+       #+ geom_bar(colour= "black", size = 0.3 ) +  coord_polar())
+     ggplot(data = VCA_Cancellations_View, aes(x = Participant, fill = Allocated_Team_Member)) 
+     + geom_bar( color = "black", size = 0.3 ) +  coord_polar()   )
+  #)})    
+
+  
+     
+#not used yet Cancellations----------------------------------------------------------------------------- 
+  
+output$plot3 <- renderPlotly(
+  {ggplotly (
+    ggplot(VCA_Cancellations_View %>%  mutate (Cancel_month =  round_date(ymd_hms(Start_date), "month") ),
+           aes(x= Cancel_month  ,y = cancelled_hours,fill=cancel_type),
+           text= paste('</br>Service Date: ',Start_date, '</br>Participant: '
+                       ,Participant, '</br>Case Coordinator: ', Case_coordinator  )) + 
+      geom_bar(stat="sum", na.rm=TRUE, position = "dodge2"  ) +
+        scale_y_continuous("Number of hours cancelled") + xlab("Cancellation Month") +
+        theme(text = element_text(size = 12)) +
+  
+        scale_color_viridis_d()  +
+        ggtitle("Visicase Analytics",subtitle = "Cancellations")  +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8),legend.position="bottom") 
+   ) %>%  layout(hovermode = "x")  } )  
+ 
+#----------Unallocated shifts ------------------------   
+ 
+output$unallocatedshifts  <- renderPlotly(  { 
+
+  ggplotly ( ggplot(   VCA_Unallocated_Shifts %>% 
+                             mutate (      Start_date =  ymd(Start_date)  , 
+                             Start_month = floor_date(Start_date, 'month') )  %>%  
+        filter ( Funding_type_name != "002-Transport (auto payments)" #, Suburb %in% input$SelectSuburbU ,
+  #Suburb != 'WACOL',  Suburb != '',  Suburb != 'NAMBOUR',#between(Start_date , '2021-09-01','2022-01-31' )
+  ) %>%  select (  Start_month  ,  Daytype, HourType, Estimated_client_cost, Shift_hours)   %>%  
+group_by(Start_month  ,  Daytype, HourType)  %>%  
+       summarise_at(vars(Estimated_client_cost, Shift_hours), sum) #   %>%   filter (Shift_hours > 20 )   
+      ,aes(x= Start_month  , y=Shift_hours, fill= paste0(Daytype,' ',  HourType))) +
+      geom_bar(stat='sum', size = 3.5, show.legend = TRUE) +
+      scale_fill_manual( name = " " , values = c25) +
+      labs(title = "Projected resource needs by Day / Time profiles ")   + 
+      scale_x_date(breaks = "1 month", minor_breaks = "1 week", labels=date_format("%Y-%m")) +
+       theme( axis.text.x = element_text(angle = 45, size=7), 
+              panel.background = element_rect(fill = "white")) ,tooltip = c("y")
+)   %>% layout(legend=list(title=list( text= "Shift need profile"),
+          legend.position = "right",legend.key.width= unit(3, 'cm'),legend.title.alignment = "right"))
+ 
+})   
+  
+
+#----------Unallocated map ------------------------    
+
+ #define the color pallate for the magnitidue of the earthquake
+  # pal <- colorNumeric(
+ #   palette = c('gold', 'orange', 'dark orange', 'orange red', 'red', 'dark red'),
+ #   domain = data$mag)
+#define the color of for the depth of the earquakes
+# pal2 <- colorFactor(
+#    palette = c('blue', 'yellow', 'red'),
+#    domain = data$depth_type
+#  )
+#create the map
+ # output$mymap <- renderLeaflet({
+ #   leaflet(data) %>% 
+ #     setView(lng = -99, lat = 45, zoom = 2)  %>% #setting the view over ~ center of North America
+ #     addTiles() %>% 
+ #     addCircles(data = data, lat = ~ latitude, lng = ~ longitude, weight = 1, 
+ #radius = ~sqrt(mag)*25000, popup = ~as.character(mag), 
+ #label = ~as.character(paste0("Magnitude: ", sep = " ", mag)), color = ~pal(mag), fillOpacity = 0.5)
+#  })
+ #observe({
+  #  proxy <- leafletProxy("mymap", data = data)
+  #  proxy %>% clearMarkers()
+  #  if (input$markers) {
+   #   proxy %>% addCircleMarkers(stroke = FALSE, color = ~pal2(depth_type), fillOpacity = 0.2, 
+ #label = ~as.character(paste0("Magnitude: ", sep = " ", mag))) %>%
+      #  addLegend("bottomright", pal = pal2, values = data$depth_type,
+      #            title = "Depth Type",
+      #            opacity = 1)}
+  #  else {
+   #   proxy %>% clearMarkers() %>% clearControls()
+   # }
+  #})
+  
+  #observe({
+  #  proxy <- leafletProxy("mymap", data = data)
+  #  proxy %>% clearMarkers()
+ #   if (input$heat) {
+  #    proxy %>%  addHeatmap(lng=~longitude, lat=~latitude, 
+ #intensity = ~mag, blur =  10, max = 0.05, radius = 15) 
+  #    }
+   # else{
+  #    proxy %>% clearHeatmap()
+  #    }  })
+  
+  
+   # +
+      #labs(  x=  names(choicex[choicex == xselected()]), y=  names(choicey[choicey == yselectedorig()]) ,
+      # title = paste0( " Client Demographics:  ",  names(choicey[choicey == yselectedorig()]) , " for each   " 
+      #    , names(choicel[choicel ==  lselected() ]) , " by  "  , names(choicex[choicex ==  xselected() ])  ) ,
+     #  tooltip = "text") 
+    #, dynamicTicks = TRUE  )
+     # %>%   layout(hovermode = "x" )  %>% 
+         # layout(#legend=list(title=list( text=  names(choicel[choicel == lselected()])),
+                # legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")
+
+#library(maps)
+# library(ggmap)
+#df <- world.cities[world.cities$country.etc == "Australia",]
+#world_data <- ggplot2::map_data('world')
+#world_data <- fortify(world_data)
+#head(world_data)
+#require("rgdal") # requires sp, will use proj.4 if installed
+#require("maptools")
+#require("ggplot2")
+#require("plyr")
+#require("rgeos")
+
+#    leaflet() %>%
+#      addProviderTiles(providers$Stamen.TonerLite,
+#        options = providerTileOptions(noWrap = TRUE)
+#      ) 
+#australia = readOGR(dsn=".", layer="COM20111216_ELB_region")
+#australia@data$id = rownames(australia@data)
+#This step isn't in the tutorial, need to do this due to a couple of errors in the AEC GIS data.
+#australia.buffered = gBuffer(australia, width=0, byid=TRUE)
+#australia.points = fortify(australia.buffered, region="id")
+#australia.df = join(australia.points, australia@data, by="id")
+#This will show you the variables in the dataset
+#head(australia@data)
+
+#myMap <- get_map(location = "Australia", zoom = 4)
+# unalloc  <- VCA_Unallocated_Shifts %>% filter ( Funding_type_name != "002-Transport (auto payments)" ) %>% 
+#            mutate (Estimated_start =   as_datetime(Estimated_start) , 
+#            Estimated_end = as_datetime(Estimated_end), Start_date =  dmy(Start_date)  , 
+#            Start_month = floor_date(Start_date, 'month') )    %>%  
+   # select(Start_date, Outlet_name,Funding,Funding_type_name, Participant,  Action_description) %>%  
+#      group_by(Start_month,Suburb,  Funding, Funding_type_name) %>%  
+  #    summarise_at(vars(Estimated_client_cost, Shift_hours), sum)    %>%    arrange(Start_month, Suburb)
+#ggmap(myMap) +
+#geom_point(data = unalloc[, c("long","lat", "pop")], aes(x=long, y = lat, colour = pop > 1000000))
+ 
+# f1 <- VCA_Unallocated_Shifts %>% filter ( Funding_type_name != "002-Transport (auto payments)" ) %>% 
+ #           mutate (Estimated_start =   as_datetime(Estimated_start) , 
+ #           Estimated_end = as_datetime(Estimated_end), Start_date =  dmy(Start_date)  , 
+ #           Start_month = floor_date(Start_date, 'month') )    %>%  
+   # select(Start_date, Outlet_name,Funding,Funding_type_name, Participant,  Action_description) %>%  
+  #    group_by(Start_month,Suburb,  Funding, Funding_type_name) %>%  
+  #    summarise_at(vars(Estimated_client_cost, Shift_hours), sum)    %>%    arrange(Start_month, Suburb)
+ 
+ 
+
+#------------unalloc   Octopus collapsible tree------#  https://adeelk93.github.io/collapsibleTree/  extras 
+          # collapsibleTreeOutput('coltree', width = "100%",  height =  "650px"))
+   #ot <- orangeDimContrib  %>% group_by(  Contributor,ContributorType, Dimension) %>% filter (Dimension !=  'NA' ) %>%
+   #  select ( ContributorType, Contributor, Dimension, Changealytics_KPII )  %>% summarise_if(is.numeric, sum, na.rm = TRUE)
+   
+    ot <- reactive ({ 
+      VCA_Unallocated_Shifts %>%  
+            mutate (Estimated_start =   as_datetime(Estimated_start) ,  Suburb = toupper(Suburb),
+                  Funding_type_name =   substr(Funding_type_name,1,20) , 
+            Estimated_end = as_datetime(Estimated_end), Start_date =  ymd(Start_date)  , 
+            Start_month = floor_date(Start_date, 'month') , Nodesize = Shift_hours / 100.0)    %>% 
+      filter ( Funding_type_name != "002-Transport (auto payments)"  #, Suburb %in% input$SelectSuburbU ,
+  #Suburb != 'WACOL',  Suburb != '',  Suburb != 'NAMBOUR',#between(Start_date , '2021-09-01','2022-01-31' 
+  ) %>%
+    select(Suburb,  Funding_type_name, Start_month, Participant,  Daytype, HourType,Shift_hours) %>%  
+     group_by(Suburb,  Funding_type_name, Start_month, Participant,  Daytype, HourType) %>%  
+    summarise_at(vars(Shift_hours ), sum, na.rm = TRUE)   %>%   
+ arrange(Suburb,  Funding_type_name, Start_month,  Daytype, HourType )      }) 
+   
+  #  ot$percrank <- percent_rank(ot$Shift_hours)   
+   # ot$percrankcol <-  cut(ot$percrank , breaks = c(0,10,100))
+   # ot$percrankcolour <- case_when( ot$percrank == 0 ~ "Bronze" , ot$percrankcol == "(0,0.5]" ~ "silver" ,
+      #                            ot$percrankcol == "(0.5,1]" ~ "gold" )
+        # Use unsplash api to add in random photos to tooltip
+ # ot$tooltip <- paste0(  ot$Start_month,  "<br>Suburb: ",  ot$Suburb,   "<br>Participant: ", #ot$Participant , 
+         #                 "<br><img src='https://source.unsplash.com/collection/385548/150x100'>" )
+
+   # ot$Changealytics_KPII <- abs(ot$Changealytics_KPII  / 1000000)
+
+    
+ output$Unallocateddemandtree<- renderCollapsibleTree (
+
+      collapsibleTree(ot(), hierarchy=c( "Start_month",  "Daytype", "HourType", "Funding_type_name",
+                                       "Suburb",  "Participant","Shift_hours"),
+                root = deparse(substitute("Unallocated Demand")), inputId = NULL,
+                attribute =  "Shift_hours"  , aggFun = sum, fill = "lightsteelblue",
+                fillByLevel = FALSE , linkLength = NULL, fontSize = 10,
+                tooltip = TRUE, collapsed = TRUE,  # nodeSize = 20,
+                zoomable = TRUE, width = NULL, height = NULL) , quoted = FALSE)
+
+      #' # Use unsplash api to add in random photos to tooltip
+#ot$tooltip <- paste0(  ot$Client,
+  #"<br>Title: ",  org$Title, "<br><img src='https://source.unsplash.com/collection/385548/150x100'>")
+      
+  # collapsibleTree(     ot,   hierarchy=c( "Start_month",  "Suburb", "Participant", "Shift_hours"), 
+       #     root = "Unallocated Demand", inputId = NULL,attribute = "Shift_hours"  ,aggFun = sum, 
+                 # fill=   c(  # The root
+                   #          "#7927b2" ,
+                             # level 1 
+                   #          rep("#fb3182", length(unique(ot$Start_month)) ),
+                             # Level 2
+                   #          rep("lightblue", (length(unique(paste( ot$Start_month,ot$Suburb)))))   , 
+                             # Level 2...plus other levels before the one before the value level
+                   #    rep("steelblue", (length(unique(paste( ot$Start_month,ot$Suburb,ot$Participant)))))   ,
+                             #ot$percrankcolour,
+                             # level above the final value level 
+                  #           ot$Shift_hours
+                   #          ) , 
+              #    fillByLevel = TRUE,  linkLength = 6,   fontSize = 15, nodeSize = "Shift_hours" ,
+              #    tooltip = TRUE, collapsed = TRUE,   tooltipHtml = "tooltip",
+              #    zoomable = TRUE, width = NULL, height = NULL) 
+      #    , quoted = FALSE)
+ #
+ 
+  
+  
+   
+   
+  
+ 
+#----------Clients Plan vs Actuals  pie and line charts  ------------------------   
+ 
+output$planactpieline  <- renderPlotly(  { 
+
+plot_ly( VCA_Funding_utilisation %>%  filter ( outlet_name == "Outlet 4") %>% 
+                           mutate (Funding_start_month =  format.Date(dmy(Funding_start_date),"%m-%y"))    %>%  
+    group_by(Funding_start_month,  outlet_name) %>%  #, Case_coordinator, Participant 
+      summarise_at(vars(Budget, Delivered_Services, Planned_services), sum) %>%   ungroup() )      %>%  
+                    #%>% arrange(dmy(Funding_start_date), Incident_severity)  
+    add_bars(x= ~Funding_start_month, y=~Budget, marker = list(color = 'red' ) )    %>% # type="bar", color=~outlet_name )  
+    add_bars(x= ~Funding_start_month, y=~Delivered_Services, marker = list(color ='green')) %>% #type="bar", color=~outlet_name ) 
+    add_bars(x= ~Funding_start_month, y=~Planned_services, marker = list(color = 'blue') )   %>% 
+            layout(yaxis = list(title = 'Count'), barmode = 'stack')  # type="bar", color=~outlet_name )
+        #, #colors=c(" _ Unknown" = "light grey","1 Insignificant" = "green" ,
+        #"2 Minor" = "forestgreen" ,"3 Moderate" = "yellow", "4 Major" = "orange", "5 Reportable Incident" = "red" ),
+        # xaxis='x2', yaxis='y2' ) %>%
+        # layout(  xaxis2 = list(domain = c(0.325, 0.7), anchor='y2' , #categoryorder = "array",
+        #categoryarray = sort(unique(VCA_Incidents$TheFirstOfMonth))
+        #  ),  #   yaxis2 = list(domain = c(0.35, 0.75), anchor='x2') )    %>% 
+        # add_pie(data=  VCA_Incidents %>% mutate ( Clients = 1 )  %>%      
+        #  group_by( Case_coordinator) %>% summarise_at(vars(Clients), sum)  %>%
+        #  ungroup() , values = ~Clients, hole= 0.8,
+                      #,xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      #     yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+        #labels = ~ Case_coordinator , #colors=c("_ Unknown" = "light grey","1 Insignificant" = "green" ,
+            #"Minor" = "forestgreen" ,"3 Moderate" = "yellow", "4 Major" = "orange", "5 Reportable Incident" = "red" ),
+        # textposition = 'inside' ,  textinfo = 'label+percent', insidetextfont = list(color = '#FFFFFF')  ,
+        #       hoverinfo = 'text', inherit = FALSE ) 
+ })
+  
+#-----lollipop act budget 
+  output$lollipopabs <- renderPlotly(
+        {ggplotly (
+        ggplot(VCA_Funding_utilisation %>%  filter ( outlet_name == "Outlet 4") %>% 
+                           mutate (Funding_start_month =  format.Date(dmy(Funding_start_date),"%m-%y"))    %>%  
+                group_by(Funding_start_month,  outlet_name) %>%  #, Case_coordinator, Participant 
+                summarise_at(vars(Budget, Delivered_Services, Planned_services), sum) %>%   ungroup()    
+                    #%>% arrange(dmy(Funding_start_date), Incident_severity)  
+              , aes(x= Funding_start_month, y=Budget ))  +   
+              
+            geom_point(stat='sum', size = 3.5, show.legend = FALSE)  + 
+            geom_segment(aes(y = 0,  x = paste0(Funding_start_month ),  yend =Budget , xend =  paste0(Funding_start_month)), 
+                 size = 1.1, show.legend = FALSE) +  
+              
+            geom_point(aes(x= Funding_start_month, y=Delivered_Services ), stat='sum', size = 3.5, show.legend = FALSE)  + 
+            geom_segment(aes(y = 0, x = paste0(Funding_start_month),yend =Delivered_Services,xend = paste0(Funding_start_month)), 
+                 size = 1.1, show.legend = FALSE) +          
+          
+            geom_point(aes(x= Funding_start_month, y=Planned_services ), stat='sum', size = 3.5, show.legend = FALSE)  + 
+          geom_segment(aes(y = 0,  x = paste0(Funding_start_month ),yend =Planned_services ,xend =  paste0(Funding_start_month)), 
+                 size = 1.1, show.legend = FALSE) + 
+                 scale_colour_gradient(high= "orange",  low = "orange") +   
+              scale_x_discrete(limits = rev) +
+              coord_flip()  +  labs( x = "Funding_start_month")  +   
+              theme(axis.line.x = element_line(colour = 'black', size=0.5, linetype='solid'),
+                  axis.line.y = element_line(colour = 'black', size=0.5, linetype='solid'),
+                    panel.grid.major.x = element_blank(),   panel.background = element_rect(fill = "white",color = "pink"), 
+                    panel.border = element_blank(),
+                  axis.ticks.x = element_blank() )  +
+                  geom_hline(yintercept = 0)  
+    )})
+  
+#-----act budget bar chart 
+  
+output$lollipopabs <- renderPlotly(
+  {ggplotly (
+    ggplot(VCA_Funding_utilisation %>%  filter ( outlet_name == "Outlet 4") %>% 
+          mutate (Funding_start_month =  format.Date(dmy(Funding_start_date),"%m-%y"))    %>%  
+          group_by(Funding_start_month,  outlet_name) %>%  #, Case_coordinator, Participant 
+          summarise_at(vars(Budget, Delivered_Services, Planned_services), sum) %>%
+          mutate( Actuals = Budget +  Delivered_Services )  %>%  ungroup()   )  +     
+                     #%>% arrange(dmy(Funding_start_date), Incident_severity) 
+      geom_bar( aes(x= Funding_start_month, y=Budget ),stat='sum', size = 3.5, show.legend = FALSE, 
+                fill = "red",position = "dodge2")  +   # _point
+      #  geom_segment(aes(y = 0,  x = paste0(Funding_start_month ),  yend =Budget , xend =  paste0(Funding_start_month)), 
+      #  size = 1.1, show.legend = FALSE) +  
+            coord_flip()  +  labs( x = "Funding_start_month")  +     
+      geom_bar(aes(x= Funding_start_month, y=Actuals ), stat='sum', size = 3.5, show.legend = FALSE,position = "dodge2"
+               , fill = "blue")  + 
+          #  coord_flip()  +  labs( x = "Funding_start_month")  +    
+      #geom_segment(aes(y = 0, x = paste0(Funding_start_month),yend =Actuals,xend = paste0(Funding_start_month)), 
+      #     size = 1.1, show.legend = FALSE) # +          
+    
+      # geom_point(aes(x= Funding_start_month, y=Planned_services ), stat='sum', size = 3.5, show.legend = FALSE)  + 
+      # geom_segment(aes(y = 0,  x = paste0(Funding_start_month ),yend =Planned_services ,xend =  paste0(Funding_start_month)), 
+      #     size = 1.1, show.legend = FALSE) + 
+
+
+        theme(axis.line.x = element_line(colour = 'black', size=0.5, linetype='solid'),
+            axis.line.y = element_line(colour = 'black', size=0.5, linetype='solid'),
+              panel.grid.major.x = element_blank(),   panel.background = element_rect(fill = "white",color = "pink"), 
+              panel.border = element_blank(),
+            axis.ticks.x = element_blank() )  +
+            geom_hline(yintercept = 0)  
+    )})
+ 
+    
+    
+#-----act budget waterfall chart  
+    
+output$waterfallp  <-  renderPlotly({   
+  
+waterplotly <- union_all(    union_all(   
+      
+        VCA_Funding_utilisation %>%   
+        mutate(Funding_start_month =format.Date(dmy(Funding_start_date),"%m-%y"))  %>%
+        mutate ( ActBudTime  = paste0( Funding_type_name,' Budget'), Type =  'Budget') %>% 
+        group_by( ActBudTime, Type,Funding_type_name) %>%  #, Case_coordinator, Participant 
+        summarise_at(vars( Budget),sum) %>% select(ActBudTime,Funding_type_name,
+                                                               Amount =  Budget , Type ) %>% ungroup(),
+        
+        VCA_Funding_utilisation %>%   
+        mutate(Funding_start_month =format.Date(dmy(Funding_start_date),"%m-%y"),Delivered_Services= Delivered_Services *-1)  %>%
+        mutate ( ActBudTime  = paste0(Funding_type_name,' Delivered_Services'), Type =  'Delivered_Services') %>% 
+        group_by( ActBudTime,Funding_type_name, Type) %>%  #, Case_coordinator, Participant 
+        summarise_at(vars( Delivered_Services),sum) %>% select(ActBudTime,Funding_type_name,
+                                                               Amount =  Delivered_Services , Type ) %>% ungroup()),
+            
+        VCA_Funding_utilisation %>% 
+        mutate (Funding_start_month=format.Date(dmy(Funding_start_date),"%m-%y"), Planned_services=  Planned_services *-1)  %>% 
+        mutate ( ActBudTime  = paste0( Funding_type_name,' Forward Roster'), Type =  'Planned_services') %>% 
+        group_by( ActBudTime,Funding_type_name, Type) %>%  #, Case_coordinator, Participant 
+        summarise_at(vars( Planned_services),sum) %>% select( ActBudTime,Funding_type_name,
+                                                             Amount =  Planned_services , Type ) %>% ungroup())
+                      
+      
+                    
+        waterplotly$desc<- as.factor(waterplotly$ActBudTime)
+        waterplotly  <- 	arrange(waterplotly ,ActBudTime) 
+        waterplotly$id <- seq_along(waterplotly$ActBudTime) 
+        waterplotly$type <- case_when( waterplotly$Type == "Totals"  ~ "black",  
+              waterplotly$Type == "Planned_services"  ~ "#66FF00",  waterplotly$Type == "Delivered_services"   ~ "#66FF00") 
+        waterplotly$measure <- case_when(grepl("totals", waterplotly$Type) ~ "absolute",  TRUE ~ "relative")  # "#a020f0"
+        waterplotly$staircase <- case_when(grepl("totals", waterplotly$Type )~ "TRUE",  TRUE ~ "FALSE") 
+        waterplotly$end <-  cumsum(waterplotly$Amount)
+        waterplotly$start <-  c(0,head(waterplotly$end,-1))
+        #waterplotlywaterplotly <- waterplotly[,c(3,1,4,6,5,2)]
+        waterplotly$type <- as.factor(waterplotly$type)
+        waterplotly$middley <- ifelse(waterplotly$Amount>0, 
+                      waterplotly$end - (  ( waterplotly$end- waterplotly$start)* .25 ),
+                       waterplotly$start- ( (waterplotly$start- waterplotly$end)  * .25 ))    
+                
+        waterplotly$SongRange  <- factor(waterplotly$Type, 
+                  levels =c("Planned_services", "Delivered_Services"))  
+        cols <- c("yellow", "orange") 
+            
+        balanceplotly <- waterplotly 
+        balanceplotly$desc <- as.factor(balanceplotly$desc)
+        balanceplotly <-  balanceplotly[order( balanceplotly$ActBudTime, balanceplotly$measure),]  
+        
+
+
+      plot_ly(balanceplotly, x = ~desc, y = ~Amount, measure = ~measure, type = "waterfall"  , 
+              decreasing = list(marker = list(color = ~type ,line = list(color = ~type, width = 4))),
+              increasing = list(marker = list(color = "#66FF00"), line = list(color = "#66FF00", width = 4)),
+              totals = list(marker = list(color = "black"), line = list(color = "black", width = 4))   )  %>%
+              layout(title = h3("Client Plan/Budget vs Actual/Planned $  Waterfall "), 
+                     xaxis = list(title = "", tickfont = "16", ticks = "outside"), hovermode = "x unified",
+              yaxis = list(title = "$"),legend = list(orientation = 'h'))   %>%
+                      subplot(nrows = 1, shareX = TRUE, shareY = TRUE) 
+      })
+   
+  
+   
+ 
+#--not used yet Planned actions comparisons------------------------------------------------
+     
+output$plot8 <- renderPlotly (
+  {ggplotly (
+     ggplot(VCA_Actions_all_inc_cancel_and_planned_View, aes(x= Start_month, y=Estimated_hours, label=Estimated_hours)) + 
+        geom_bar(stat='identity',width=.5)  + scale_fill_manual(name="Indicator", 
+        labels = c("Above Average", "Below Average"),  values = c("above"="#00ba38", "below"="#f8766d")) + 
+        labs(subtitle="Planned Actions'",  title= "Estimated Hours by month") +  coord_flip()    
+   )}) 
+
+#--not used  --- category waterfall  ----
+# output$plot9 <- renderPlotly(   
+#    {ggplotly
+#       (ggplot(data = od, aes(x = Coordinator, fill = Location))
+#          + geom_rect(aes( xmin = Sl_No-0.5, xmax = Sl_No + 0.5, ymin = cum_val_p, ymax = cum_values)) 
+#          + scale_y_continuous("Difference", labels = comma)
+#          + scale_x_discrete("",breaks = od$Location)
+#          + theme(text = element_text(size = 12))
+#          + geom_text(aes(Sl_No,cum_values, label = comma(Delta)), size =2, vjust = 1)
+#          + expand_limits(y = 0)
+#          + scale_color_viridis_d() 
+#                 # + labs(x = "Date", y = "# of fatalities", color = "Day of week") 
+#          + ggtitle("Visicase Analytics",subtitle = "Package utilisation insight") 
+#          + theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8),legend.position="bottom") 
+#     ) })  #%>% height = "120%"
+
+ 
+#---not used ---- Budget by Coordinator --Balloon ------------------------------------------   
+
+output$plot10 <-  renderPlot  ( {ggplot  
+   ( ggballoonplot(  VCA_Funding_utilisation, x = "outlet_name", y = "Coordinator_name", size = "Budget", 
+    fill = "Utilisation_to_date") +   scale_fill_viridis_c(option = "C")  )})
+  
+
+#-----------Incidents Severity by weekday-------------------------------------------   
+     #https://shinydata.wordpress.com/2015/02/02/a-few-things-i-learned-about-shiny-and-reactive-programming/
+
+     #  ID1 <-   VCA_Incidents %>% mutate(daysort =wday(dmy(Incident_date)), Incident_weekday) %>% 
+     #              distinct (daysort, Incident_weekday ) %>%  arrange(daysort)
+    #   ID1$key <-  row.names(ID1) 
+    #   idx <- reactiveValues(idx = 1)     
+   #    idx1 <- reactiveValues(idx = nrow(ID1) )
+   #    filter_df <- reactiveValues(Incident_weekday  = ID1[1:nrow(ID1),1] )
+       
+   #    click_data <- reactive({if(!is.null(event_data("plotly_doubleclick" ,source = "SW", priority = "event")))return (NULL)})
+    #   click_data <- reactive({ event_data("plotly_click",source = "SW", priority = "event")  })
+      
+  #    filter_df <- reactive ({  if(!is.null(event_data("plotly_click" ,source = "SW", priority = "event"))) 
+   #                            ID1[click_data()$pointNumber + 1,1]    else ID1[1:nrow(ID1),1]  } ) 
+ 
+
+     # input$thedowname <- reactive ({ "All"  })  
+      color_index <- data.frame(
+        cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        labels = c(" _ Unknown" , "1 Insignificant" ,  "2 Minor" ,  "3 Moderate"  ,   "4 Major" ,  "5 Reportable Incident"   )) 
+
+         thefilter <- reactiveValues()
+       thefilter <-  reactive ({ if( thedowname$thedays[1]   == "all")   thedaynos  else   thedowname$thedays  })
+                      #if(thedowname[1]  != "all") thedowname  else    thedaynos
+       # printfilter <- isolate(thefilter) 
+output$safetyweekdayp <-  renderPlot( {(ggplot( VCA_Incidents %>%  #filter( Incident_weekday  %in%  thefilter() )  %>%  
+         mutate(Incident_weekday, Incidents = 1,  Weekdayno = lubridate::wday(dmy(Incident_date), week_start = 1))    %>%  
+         select (Incident_weekday , Incident_severity , Incidents , Weekdayno )    %>%   # Coordinator, Outlet_name, Participant
+         group_by ( Weekdayno, Incident_weekday,  Incident_severity ) %>%  # Outlet_name, Coordinator,Participant
+         summarise(Incidents = sum(Incidents))    %>%   
+          merge( color_index, by.x = "Incident_severity", by.y = "labels", all.x = TRUE)   %>%    
+          arrange(Weekdayno,Incident_severity)  %>% 
+          mutate(Incident_severity =factor(Incident_severity, 
+            levels =  c("5 Reportable Incident", "4 Major" , "3 Moderate" ,"2 Minor" ,  "1 Insignificant", " _ Unknown" )))) +
+            
+          geom_bar( aes(x=reorder(Incident_weekday,Weekdayno), y =Incidents,   fill = Incident_severity),stat="sum") +    
+          #, text=paste('</br>Weekday: ',Incident_weekday,'</br>Number of Incidents: ',Incidents, '</br>')
+          # alpha=Complexity,)) +  geom_bar(stat="identity",position="dodge", colour="black") + 
+          # scale_alpha_manual(values=c(0.1, 0.5, 1)) +
+            labs( #title = "Safety Calendar: Number of Incidents by Weekday and Severity",
+                 x = "Weekday of Incident",
+             y = "Number of Incidents") + 
+            theme_minimal() +  scale_fill_manual(values = cols ) + 
+            coord_polar(theta = "x",  start = 0, direction = 1, clip = "off")  + # scale_text(guide = 'none') +
+          theme( axis.title.x  = element_text( size = 15), 
+                  axis.title.y  = element_text( size = 15), 
+                  axis.ticks = element_blank(),    
+                  plot.title = element_text(size = 16, face = "bold")  )
+          #,tooltip = c("text")  mutate(tooltip = sprintf("Sepal Length: %1.2f\nSepal Width: %1.2f\nPetal Length: %1.2f\nPetal Width: %1.2f", Sepal.Length, Sepal.Width, Petal.Length, Petal.Width)) %>%    x = r*cos(theta) and y=r*sin(theta)     data$x <- data$r * sin(data$theta) + 0.5    data$y <- data$r * cos(data$theta) + 0.5
+        )
+})  
+ #thedegree <- ATAN  (( input$DblClick1$y - 24 ) / (input$DblClick1$x - 4) )  
+
+        output$dblclick_info2 <- renderPrint({ # str(printtheweeknoclick) 
+                              cat("input$DblClick1:\n")  #lvls[round(input$plot1_click$x)]
+                                cat("input dbl click x - 4 : y - 24    ")
+                                str( click_saved$x)  
+                                str( click_saved$y)
+                                str(isolate(thefilter()))
+                                str( isolate(thedowname$thedays)) 
+                            # str( click_saved[1,1]- 4 ) 
+                             #str( click_saved[2,1] - 24 )
+                             #  cat("cart2polar x - 4 y - 24 :    ")
+                              #str( cart2polar((  click_saved[1,1] - 4 ) , ( click_saved[2,1]  - 24) ))
+                              # cat("cart2polar x  y  :    ")
+                               #str( cart2polar( click_saved[1,1],  click_saved[2,1]))
+                               # thedowname()  #$thedays
+                             #  str( cart2polar(0.414+4,  8.62+24)) #   x-4   0.414   y-24  8.62
+                             #str(NISTradianTOdeg( cart2polar(input$DblClick1$x - 4, input$DblClick1$y - 24 )) ) 
+                            #  str(NISTdegTOradian( cart2polar(input$DblClick1$x - 4, input$DblClick1$y - 24)) ) 
+       }) 
+
+
+        #xselected <- reactive({     
+         #     if (is.null(input$plot_y)) {
+         #        first(paste0(orangeDimContrib$Dimension,' ',  format(orangeDimContrib$first_Timeframe, "%m-%y") )) 
+         #       }  else { Wp2()$DimTime[round(input$plot_y )] } 
+         #     }) 
+                              
+       # output$dblclick_info <- renderPrint({   
+          #          if (is.null(input$DblClick11$x)) {
+          #             unique( VCA_Incidents$Incident_weekday)
+           #           }  else { VCA_Incidents$VCA_Incidents[round(input$DblClick1$x )] }   })
+        
+  
+        #source_coords <- reactiveValues(xy=data.frame(x=c(1,1),  y=c(1,1)))
+        #eventReactive(input$DblClick1, {
+        #   source_coords$xy[2,] <- c(input$DblClick1$x, input$DblClick1$y) }
+        #   , ignoreNULL = FALSE, ignoreInit = FALSE)  #source_coords$xy[1,1], source_coords$xy[1,2]
+        
+       # eventReactive(input$DblClick1, { 
+          
+        #  source_coords$xy[2,] <- c(input$DblClick1$x, input$DblClick1$y)
+        ## CHANGE HERE
+  ## Set up buffert, to keep the click.  
+  #click_saved <- reactiveValues(singleclick = NULL)
+
+  ## CHANGE HERE
+  ## Save the click, once it occurs.
+  #observeEvent(eventExpr = input$plot_click, handlerExpr = { click_saved$singleclick <- input$plot_click })
+
+  ## CHANGE HERE  
+  #selected_line <-  reactive({
+  #  nearPoints(mtcars, click_saved$singleclick, ## changed from "input$plot_click" to saved click.
+  #             maxpoints = 1,  #             addDist = TRUE)  #})
+  #output$plotui <- renderUI({  #  plotOutput("plot", height=600,  #             click = "plot_click" # #  ) # })
+        cart2polar <- function(x, y) {data.frame(  theta = atan2(as.numeric(y), as.numeric(x) ) ) }
+          ## CHANGE HERE
+          ## Set up buffert, to keep the click.  
+          click_saved <- reactiveValues(xy=data.frame(x=c(9999),  y=c(9999)))
+        thedowname <- reactiveValues(thedays = c("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday", "Sunday" ))
+          ## CHANGE HERE    isolate(thedowname$thedays)
+          ## Save the click, once it occurs.
+          observeEvent(eventExpr = input$DblClick1, handlerExpr = { click_saved$x <- input$DblClick1$x
+           click_saved$y <- input$DblClick1$y
+             thedowname$thedays <- case_when ( 
+            cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     1.40 &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  1.56  ~  "Monday",
+            cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=        -0.99 &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  1.33  ~  "Tuesday" ,
+            cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     -1.48 &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  -1.15  ~  "Wednesday" ,
+            cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=        -1.63 &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  -1.51  ~  "Thursday" ,
+            cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     -1.98 &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  -1.65 ~  "Friday" ,
+           ( (cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=        -3.01 & 
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  <=     -2.29 )  ||   
+                ( cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  1.8 &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  3.06))   ~  "Saturday" ,
+            cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     1.58  &   
+                 cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  1.74  ~  "Sunday" 
+            ,TRUE ~  "all" )    })
+        # thedowname <- thedaynos
+         
+         # xselectedi <- reactiveValues(xy=data.frame(x=c(1,1),  y=c(1,1)))
+          # xselectedi$xy[2,] <- c(input$DblClick1$x, input$DblClick1$y)
+        #thedowname <- reactive({  #    eventReactive(click_saved$x, {thedowname <- 
+                 #reactive({ #click_saved$dblclick, ## changed from "input$plot_click" to saved click.
+          #observeEvent(eventExpr =  click_saved$x, handlerExpr = { 
+          # thedowname   <- c("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday", "Sunday" )
+          # thedowname <- case_when (
+          #    click_saved$x == 9999   ~ thedaynos ,
+         #   click_saved$x != 99  ~ "Monday" ) }  )   #  , ignoreNULL = FALSE
+        
+       # polar2cart <- function(r, theta) {  data.frame(x = r * cos(theta), y = r * sin(theta))}
+        
+         
+        
+        #polar2cart <- function(r, theta) {  data.frame(x = r * cos(theta), y = r * sin(theta))}
+        #cart2polar <- function(x, y) {  data.frame(r = sqrt(x^2 + y^2), theta = atan2(y, x))}
+        
+       
+                    #r = sqrt(as.numeric(x)^2 + as.numeric(y)^2),
+         #selecteddow <-  reactive({     atan2(as.numeric(input$DblClick1$y), as.numeric(input$DblClick1$x) ) })   
+         # cart2polar(input$DblClick1$x, input$DblClick1$y)  
+        
+       #  thedowname <-    reactive ({   case_when ( 
+      #      cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     1.40 &   
+      #           cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  1.56  ~  "Monday" ,
+      #      cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=        -0.99 &   
+       #          cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  1.33  ~  "Tuesday" ,
+       #     cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     -1.48 &   
+       #          cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  -1.15  ~  "Wednesday" ,
+       #     cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=        -1.63 &   
+       #          cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  -1.51  ~  "Thursday" ,
+       #     cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     -1.98 &   
+       #          cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  -1.65 ~  "Friday" ,
+       #    ( (cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=        -3.01 & 
+       #          cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  <=     -2.29 )  ||   
+       ##         ( cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  1.8 &   
+       #       cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  3.06))   ~  "Saturday" ,
+       #     cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )  >=  	     1.58  &   
+       #          cart2polar(( input$DblClick1$x - 4 ) , (input$DblClick1$y - 24) )   <=  1.74  ~  "Sunday" 
+       #                
+       #    ,  TRUE ~ "All" ) }) 
+       #    ,  r=(x - 4)^2+y2     θ==ATAN  ((  y - 24 ) / (x - 4) )   
+# https://katrionagoldmann.github.io/volcano3D/reference/radial_ggplot.html 3 way polar      
+      
+            
+output$safetya <- renderPlotly ({   
+    
+    plot_ly(  VCA_Incidents    %>% filter( 
+       Street_address_Suburb %in% input$SelectSuburbSa ,
+        Gender %in% input$SelectGenderSa ,
+        Preferred_language %in% input$SelectLanguageSa ,
+        ATSI %in% input$SelectATSISa,
+          #AgeBands %in% input$SelectAgeBands,
+        Country_of_birth %in% input$SelectBirthCountrySa ,
+        Ethnic_status %in% input$SelectEthnicSa ,
+        Marital_status %in% input$SelectMaritalSa ,
+        between(dmy(Incident_date), ymd(input$Timeframesafety1[1]), ymd(input$Timeframesafety1[2])) #,
+           # Incident_weekday %in%  filter_df() 
+       ) %>% 
+        mutate ( Incidents = 1 ,daysort = wday(dmy(Incident_date)))  %>% 
+                group_by(Incident_weekday,Incident_severity, daysort,Color) %>% 
+                summarise_at(vars(Incidents), sum)  %>%   arrange(daysort,Incident_severity) ,  
+        type = "barpolar",  theta = ~Incident_weekday ,r = ~Incidents, name = ~Incident_severity,  
+        color = ~Incident_severity, colors = safecolslookup , 
+         hovertemplate = " %{r} Incidents of Severity", showlegend = FALSE  )    %>%   #, source = "SW"  
+              #event_register("plotly_click")  %>% 
+        layout(polar=list(hole = 0.2,radialaxis = list(angle = 90, tickangle = 90),
+              angularaxis = list(rotation = 65,categoryorder =  "array", direction = "clockwise" ,
+              categoryarray = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")))  ,
+             # marker = list(color = ~Color, cauto ="TRUE") ,
+              legend = list( orientation = "v", x = 0.9, y = 0.9
+              ), showlegend = TRUE, 
+              xaxis = list(     title = "Day of the week",    showgrid = F)   ,            
+              yaxis = list(    title = "Number of Incidents", orientation = "h") ,
+              #title= list(text=paste0("        Safety Calendar: Incidents by Weekday and Severity " ) , font=list(size=15))
+             )
+    })
+           
+
+
+#-------------Severity hours safety clock ----- #filtered_plotinc #(www/c2.png)--- https://dash-gallery.plotly.host/dash-circos/
+
+
+
+output$safetyclock <-  renderPlot ({  
+  
+        Hrs  <- data.frame (Hrs24  = c(1:24))
+          # if (!is.null(click_data)) { idx <- click_data()$pointNumber + 1  }
+       TheHours <- left_join( Hrs , VCA_Incidents  %>%   filter (Incident_weekday %in% thefilter()  )    %>% 
+                                                      # Incident_severity !=   " _ Unknown")
+                                mutate (Incidents = 1)   ,
+                by = c("Hrs24" = "Incident_hour" )  )  %>%
+                 mutate (  Incident_hour = Hrs24,
+                  Incidents =  if_else(is.na(Incident_severity), 0, Incidents ) ,
+                    Incident_severity =  if_else(is.na(Incident_severity), " ", Incident_severity  ) ) %>%   
+               select ( Incident_hour, Incident_severity , Incidents ) %>% 
+                group_by ( Incident_hour, Incident_severity  ) %>%
+                summarise(across( cols=Incidents, .fns = sum ) )   #, fill= Incident_severity 
+    
+    
+     col_direction =   c(  "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",  "none" = "white",  "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+     maxy <- max(TheHours %>% group_by (Incident_hour) %>%  summarise_at(vars(Incidents),.funs="sum") ) 
+     TheHoursmatrix <- as.matrix(TheHours  %>%  dplyr::select ( Incident_hour, Incident_severity , Incidents) %>% 
+           pivot_wider(names_from = Incident_severity, values_from = Incidents)  %>%
+           mutate(across(.cols = everything(),(~ if_else(is.na(.x),0,.x)))) )
+     matcol <- ncol(TheHoursmatrix)
+     
+    circos.clear()
+      circos.par(gap.degree = 0, cell.padding = c(0, 0, 0, 0), start.degree = 90)  
+      circos.initialize("A",   xlim = c(0, 24))
+
+      circos.track(ylim = c(0, maxy),track.index = 1,  track.height= 	0.4,  #,   bg.border = NA
+            panel.fun = function(x, y) {  value = TheHoursmatrix[,2:matcol]   
+                  circos.barplot(value  , 1:24 - 0.5,  col = col_direction  ,bar_width = 0.8 ) })
+      
+      circos.yaxis(side="left", labels = TRUE,tick = TRUE,  track.index = 1 )
+      set_track_gap(mm_h(3)) # 3mm
+      circos.track(ylim = c(0, 1),   bg.border = NA )  #track.height= 	0.6
+      circos.axis(major.at = 0:24, labels = NULL, direction = "inside",  major.tick.length = mm_y(2))
+      circos.text(1:24, rep(1, 24) - mm_y(5), 1:24, facing = "downward")
+      
+      current.time = as.POSIXlt(Sys.time())
+      sec = ceiling(current.time$sec)
+      min = current.time$min
+      hour = current.time$hour
+      
+      sec.degree =  (90 - sec/60 * 360)
+      #arrows(0, 0, cos(sec.degree/180*pi)*0.45, sin(sec.degree/180*pi)*0.45)
+      
+      min.degree = (90 - min/60 * 360)
+      #arrows(0, 0, cos(min.degree/180*pi)*0.4, sin(min.degree/180*pi)*0.4, lwd = 3)   
+      
+      hour.degree =  (90 - hour/24 * 360 - min/60 * 360/24)
+      arrows(0, 0, cos(hour.degree/180*pi)*0.3, sin(hour.degree/180*pi)*0.3, lwd = 3 ) 
+            title(main=toString( thefilter() ) ,  cex = 0.75)
+      legend(x="topright",  cex = 1,bty='n' , # lwd = 1, #text.font = i, 
+              legend =c("1 Insignificant","2 Minor" ,"3 Moderate" , "4 Major" ,"5 Reportable Incident"  ), 
+             fill = c( "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ), border = NULL,
+             title = "Incident Severity" )
+
+})
+
+  
+      
+#-------------weekdays  safety clock sunburst -----------------   
+
+output$safetyclocka   <- renderPlotly(  {
+  
+    cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+    
+    color_index <- data.frame(
+        cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        labels = c(" _ Unknown" , "1 Insignificant" ,  "2 Minor" ,  "3 Moderate"  ,   "4 Major" ,  "5 Reportable Incident"   )) 
+     
+     DFW <-  VCA_Incidents %>%  
+                          # between(dmy(Incident_date),  input$Timeframesafety3a[1],input$Timeframesafety3a[2]))    %>%  
+        select (Incident_weekday , Incident_severity  )    %>%   # Coordinator, Outlet_name, Participant
+         mutate ( Incident_weekday, Incidents = 1, Weekday = paste(Incident_weekday)  )  %>%  
+         group_by ( Incident_weekday, Incident_severity,Weekday  ) %>%  ## the order and hierarchy### , Outlet_name, Coordinator,Participant
+         summarise(Incidents = sum(Incidents))   
+          
+          
+          as.sunburstDFW <- function(DFW, valueCol="Incidents"){  ### valueCol is the column to sum as the value  ###
+                require(data.table)
+                
+                colNamesDFW <- names(DFW)
+                
+                if(is.data.table(DFW)){
+                  DTW <- copy(DFW)
+                } else {
+                  DTW <- data.table(DFW, stringsAsFactors = FALSE)
+                }
+                
+                DTW[, root := "Incldient Weekday"]   ### name in the middle ###
+                colNamesDTW <- names(DTW)
+                
+                if(is.null(valueCol)){
+                  setcolorder(DTW, c("root", colNamesDFW))
+                } else {
+                  setnames(DTW, valueCol, "values", skip_absent=TRUE)
+                  setcolorder(DTW, c("root", setdiff(colNamesDFW, valueCol), "values"))
+                }
+                
+                hierarchyCols <- setdiff(colNamesDTW, "values")
+                hierarchyList <- list()
+                
+                for(i in seq_along(hierarchyCols)){
+                  currentCols <- colNamesDTW[1:i]
+                  if(is.null(valueCol)){
+                    currentDTW <- unique(DTW[, ..currentCols][, values := .N, by = currentCols], by = currentCols)
+                  } else {
+                    currentDTW <- DTW[, lapply(.SD, sum, na.rm = TRUE), by=currentCols, .SDcols = "values"]
+                  }
+                  setnames(currentDTW, length(currentCols), "labels")
+                  hierarchyList[[i]] <- currentDTW
+                }
+                
+                hierarchyDTW <- rbindlist(hierarchyList, use.names = TRUE, fill = TRUE)
+                
+                parentCols <- setdiff(names(hierarchyDTW), c("labels", "values"))
+                hierarchyDTW[, parents := apply(.SD, 1, function(x){fifelse(all(is.na(x)),
+                          yes = NA_character_, no = paste(x[!is.na(x)], sep = ":", collapse = " - "))}), .SDcols = parentCols]
+                hierarchyDTW[, ids := apply(.SD, 1, function(x){paste(x[!is.na(x)], collapse = " - ")}),
+                            .SDcols = c("parents", "labels")]
+               # hierarchyDT[, c(parentCols) := NULL]
+                return(hierarchyDTW)
+              }
+
+
+        
+
+    
+      sunburstDFW <- as.sunburstDFW(DFW, valueCol = "Incidents")
+      sunburstDFW$values <- abs(sunburstDFW$values) 
+      
+      
+          
+     sunburstDFW <- merge(sunburstDFW , color_index, by.x = "Incident_severity", by.y = "labels", all.x = TRUE)
+           
+     sunburstDFW <- merge(sunburstDFW , color_index,  by.x = "labels", by.y = "labels", all.x = TRUE)
+           
+           sunburstDFW <-  mutate (sunburstDFW,  cols = 
+                       paste(if_else(is.na(cols.x), if_else(is.na(cols.y),"lightgrey", cols.y), cols.x)))
+        
+
+          
+
+     plot_ly(data = sunburstDFW, sort = FALSE , ids = ~ids, labels= ~labels, parents = ~parents, 
+                    values= ~values, type='sunburst', marker = list(colors = ~cols)   )   # %>%   
+            #   layout(title = " Drill down Incidents by Weekday " , font=4)
+  })        
+
+#Here is an example for the second data.frame format accepted by the function (valueCol = NULL, because it is calculated from the data):
+
+#DF2 <- data.frame(sample(LETTERS[1:3], 100, replace = TRUE),
+#                 sample(LETTERS[4:6], 100, replace = TRUE),
+#                 sample(LETTERS[7:9], 100, replace = TRUE),
+#                 sample(LETTERS[10:12], 100, replace = TRUE),
+#                 sample(LETTERS[13:15], 100, replace = TRUE),
+#                 stringsAsFactors = FALSE)
+#
+#plot_ly(data = as.sunburstDF(DF2), ids = ~ids, labels= ~labels, parents = ~parents, values= ~values, type='sunburst', branchvalues = 'total')
+
+
+#output$safetyclock <-  renderPlot ({  
+#
+#       Hrs  <- data.frame (Hrs24  = c(1:24))
+#          # if (!is.null(click_data)) { idx <- click_data()$pointNumber + 1  }
+#       TheHours <- left_join( Hrs , VCA_Incidents  %>%  #filter (Incident_weekday %in%  filter_df() )   %>%  
+##                                mutate (Incidents = 1)   ,
+#                by = c("Hrs24" = "Incident_hour" )  )  %>%
+#                 mutate (  Incident_hour = Hrs24,
+#                  Incidents =  if_else(is.na(Incident_severity), 0, Incidents ) ,
+#                  Sevcol =  if_else(is.na(Sevcol), "white", Sevcol ) ,
+#                    Incident_severity =  if_else(is.na(Incident_severity), "No Incidents this hour", Incident_severity  ) ) %>%   
+##               select ( Incident_hour, Incident_severity , Sevcol, Incidents ) %>% 
+#                group_by ( Incident_hour, Incident_severity , Sevcol ) %>%
+##                summarise(across( cols=Incidents, .fns = sum ) )    %>%   arrange(Incident_hour, Incident_severity , Sevcol)
+#    
+#     col_direction =   c(  "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+##            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+#     maxy <- max(TheHours %>% group_by (Incident_hour) %>%  summarise_at(vars(Incidents),.funs="sum") ) 
+#     TheHoursmatrix <- as.matrix(TheHours  %>%  dplyr::select ( Incident_hour, Incident_severity ,Sevcol, Incidents) %>% 
+#           pivot_wider(names_from = Incident_severity, values_from = Incidents)  %>% select (-c ("No Incidents this hour") ) %>%
+#           mutate(across(where(is.double),(~ if_else(is.na(.x),0,.x)))) )
+#     matcol <- ncol(TheHoursmatrix)
+#     
+#    circos.clear()
+#      circos.par(gap.degree = 0, cell.padding = c(0, 0, 0, 0), start.degree = 90)  
+#     circos.initialize("A",   xlim = c(0, 24))
+#
+#      circos.track(ylim = c(0, maxy),track.index = 1,  track.height= 	0.4,  #,   bg.border = NA
+#            panel.fun = function(x, y) {  value = TheHoursmatrix[,3:matcol]   
+###                  circos.barplot(value  , 1:24 - 0.5,  col = Sevcol  ,bar_width = 0.8 ) })
+#      
+#      circos.yaxis(side="left", labels = TRUE,tick = TRUE,  track.index = 1 )
+#      set_track_gap(mm_h(3)) # 3mm
+#      circos.track(ylim = c(0, 1),   bg.border = NA )  #track.height= 	0.6
+#      circos.axis(major.at = 0:24, labels = NULL, direction = "inside",  major.tick.length = mm_y(2))
+#      circos.text(1:24, rep(1, 24) - mm_y(5), 1:24, facing = "downward")
+#      
+ #     current.time = as.POSIXlt(Sys.time())
+#      sec = ceiling(current.time$sec)
+##      min = current.time$min
+##      hour = current.time$hour
+##      
+#      sec.degree =  (90 - sec/60 * 360)
+      #arrows(0, 0, cos(sec.degree/180*pi)*0.45, sin(sec.degree/180*pi)*0.45)
+      
+#      min.degree = (90 - min/60 * 360)
+      #arrows(0, 0, cos(min.degree/180*pi)*0.4, sin(min.degree/180*pi)*0.4, lwd = 3)   
+      
+#      hour.degree =  (90 - hour/24 * 360 - min/60 * 360/24)
+#      arrows(0, 0, cos(hour.degree/180*pi)*0.3, sin(hour.degree/180*pi)*0.3, lwd = 3 ) 
+#         title(main=list("Safety Clock: the Incident Hour" ,  cex = 1.5, font = 1)) 
+#      legend(x="topright",  cex = 1,bty='n' , # lwd = 1, #text.font = i, 
+#             legend =c(" _ Unknown","1 Insignificant","2 Minor" ,"3 Moderate" , "4 Major" ,"5 Reportable Incident"  ), 
+#             fill = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ), border = NULL,
+#             title = "Incident Severity" )
+
+#})
+
+
+
+#-----------Incidents Type  ------------------------------------------   
+
+  ID1T <-   VCA_Incidents %>%  distinct (Incident_type_label) %>%  arrange(Incident_type_label)
+       ID1T$key <-  row.names(ID1T) 
+       idxT <- reactiveValues(idxT = 1)     
+       idx1T <- reactiveValues(idxT = nrow(ID1T) )
+      typefilter <- reactiveValues(Incident_type_label  = ID1T[1:nrow(ID1T),1] )
+       
+       click_dataT <- reactive({if(!is.null(event_data("plotly_doubleclick" ,source = "SWT", priority = "event")))return (NULL)})
+       click_dataT <- reactive({ event_data("plotly_click",source = "SWT", priority = "event")  })
+      
+      typefilter <- reactive ({  if(!is.null(event_data("plotly_click" ,source = "SWT", priority = "event"))) 
+                               ID1T[click_dataT()$pointNumber + 1,1]    else ID1T[1:nrow(ID1),1]  } ) 
+      
+  
+ 
+
+
+
+output$safetyweekdaytype <- renderPlotly ({ 
+
+     cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident"  = "red" )
+
+     plot_ly(  VCA_Incidents    %>% 
+        mutate ( Incidents = 1 )  %>% 
+                group_by(Incident_type_label,Incident_severity,Color )  %>% 
+                summarise_at(vars(Incidents), sum) ,  
+        type = "barpolar",  theta = ~Incident_type_label ,r = ~Incidents, name = ~Incident_severity,
+        color = ~Incident_severity, colors = safecolslookup ,  hovertemplate = " %{r} Incidents of Type", showlegend = FALSE
+        #, source = "SWT" 
+        )   %>%   event_register("plotly_click") %>% 
+        layout(polar=list(hole = 0.2,radialaxis = list(angle = 90, tickangle = 90)
+                ,angularaxis = list(rotation = 65,categoryorder =  "array", direction = "clockwise" ))  ,
+             # marker = list(color = ~Color, cauto ="TRUE") ,
+              legend = list( orientation = "v", x = 0.9, y = 0.9 ), showlegend = TRUE, 
+              legend =c(" _ Unknown","1 Insignificant","2 Minor" ,"3 Moderate" ,  "4 Major" , "5 Reportable Incident"  )
+              #, showlegend = TRUE, 
+             # yaxis = list(    title = "Number of Incidents", orientation = "h") 
+             # title= list(text=paste0("        Safety Calendar: Incidents by Type and Severity " ) , font=list(size=15))
+             ) 
+      })
+
+
+           
+#-------Incident Type Click to filter starburst --------------
+         
+         ID1T <-   VCA_Incidents %>% 
+                      distinct (Incident_type_label ) #%>%  arrange(typesort)
+         ID1T$key <-  row.names(ID1T) 
+         d1T <- reactive ({  if(!is.null(event_data("plotly_doubleclick" ,source = "SWT")))  return (NULL ) })
+         d1T  <- reactive ({event_data("plotly_click" ,source = "SWT") })
+         typefilter  <- reactive ({  if(!is.null(event_data("plotly_click" ,source = "SWT"))) 
+                                ID1T %>%  filter(Incident_type_label %in%  thedaynos[d1T()$pointNumber + 1 ])
+                                                       else (thedaynos) } ) 
+         
+
+
+#---------Incident Type hours safety clock #filtered_plotinc www/c2.png)---https://dash-gallery.plotly.host/dash-circos/
+
+output$safetyclocktype <-  renderPlot ({ 
+  
+     Hrst  <- data.frame (Hrs24  = c(1:24))
+     
+     TheHourst <- left_join( Hrst ,( VCA_Incidents   %>%  filter (Incident_weekday %in%  typefilter()   ,                         
+                          between(dmy(Incident_date), ymd(input$Timeframesafety1[1]), ymd(input$Timeframesafety1[2])) 
+                          )),  by = c("Hrs24" = "Incident_hour" )  )   %>%  
+          mutate ( Incidents = 1,  Incident_hour = Hrs24,
+              Incident_severity ) %>%   
+          select ( Incident_hour, Incident_severity , Incidents ) %>% 
+          group_by ( Incident_hour, Incident_severity  ) %>%
+          summarise(across( cols=Incidents, .fns = sum ) )    
+      
+     maxyt <- max(TheHourst %>% group_by (Incident_hour) %>%  summarise_at(vars(Incidents),.funs="sum") ) 
+     TheHoursmatrixt <- as.matrix(TheHourst  %>%  dplyr::select ( Incident_hour, Incident_severity , Incidents) %>% 
+           pivot_wider(names_from = Incident_severity, values_from = Incidents)  %>%
+           mutate(across(.cols = everything(),(~ if_else(is.na(.x),0,.x)))) )
+    
+     col_direction =   c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+     matcolt <- ncol(TheHoursmatrixt)
+     
+    circos.clear()
+    
+      circos.par(gap.degree = 0, cell.padding = c(0, 0, 0, 0), start.degree = 90)  
+      circos.initialize("A",   xlim = c(0, 24))
+      circos.track(ylim = c(0, maxyt),track.index = 1,  track.height= 	0.4,  #,   bg.border = NA
+            panel.fun = function(x, y) {  value = TheHoursmatrixt[,2:matcolt]   
+            circos.barplot(value  , 1:24 - 0.5,  col = col_direction  ,bar_width = 0.8 )})
+      
+      circos.yaxis(side="left", labels = TRUE,tick = TRUE,  track.index = 1 )
+      set_track_gap(mm_h(3)) # 3mm
+      circos.track(ylim = c(0, 1),   bg.border = NA )  #track.height= 	0.6
+      circos.axis(major.at = 0:24, labels = NULL, direction = "inside",  major.tick.length = mm_y(2))
+      circos.text(1:24, rep(1, 24) - mm_y(5), 1:24, facing = "downward")
+      
+      current.time = as.POSIXlt(Sys.time())
+      sec = ceiling(current.time$sec)
+      min = current.time$min
+      hour = current.time$hour
+      
+      sec.degree =  (90 - sec/60 * 360)
+      #arrows(0, 0, cos(sec.degree/180*pi)*0.45, sin(sec.degree/180*pi)*0.45)
+      
+      min.degree = (90 - min/60 * 360)
+      #arrows(0, 0, cos(min.degree/180*pi)*0.4, sin(min.degree/180*pi)*0.4, lwd = 3)   
+      
+      hour.degree =  (90 - hour/24 * 360 - min/60 * 360/24)
+      arrows(0, 0, cos(hour.degree/180*pi)*0.3, sin(hour.degree/180*pi)*0.3, lwd = 3 ) 
+        # title(main=list("Safety Clock: the Incident Hour" ,  cex = 1.5, font = 1)) 
+      legend(x="topright",  cex = 1,bty='n' , # lwd = 1, #text.font = i, 
+             legend =c(" _ Unknown","1 Insignificant","2 Minor" ,"3 Moderate" , "4 Major" ,"5 Reportable Incident"  ), 
+             fill = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ), border = NULL,
+             title = "Incident Severity" )
+})
+
+ 
+
+#-----------Incidents pie and line charts  ------------------------   
+ 
+output$incpieline  <- renderPlotly(  { 
+     cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident"  = "red" )
+  
+  plot_ly()  %>% add_trace(data= VCA_Incidents %>%  
+                   mutate ( Incidents = 1 )      %>%  
+               group_by(TheFirstOfMonth, Incident_severity ) %>% summarise_at(vars(Incidents), sum)  %>%   ungroup()  %>% 
+                 arrange(TheFirstOfMonth, Incident_severity)   ,  
+                 x= ~TheFirstOfMonth, y=~Incidents,  type="scatter", mode="lines+markers", color=~Incident_severity,
+                  colors=cols,   xaxis='x2', yaxis='y2' ) %>%
+              layout(  xaxis2 = list(domain = c(0.2, 0.9), anchor='y2' , categoryorder = "array",
+                #  title= list(text=paste0("        Safety Calendar: Incidents by month and Severity " ) , font=list(size=15)),   
+              categoryarray = sort(unique(VCA_Incidents$TheFirstOfMonth))), 
+              yaxis2 = list(domain = c(0.35, 0.75), anchor='x2'), showlegend = T ) %>% 
+
+  
+       add_pie( data=  VCA_Incidents %>% 
+                  select (Incident_severity )  %>% 
+                mutate ( Incidents = 1 )  %>%     
+               group_by(Incident_severity) %>% summarise_at(vars(Incidents), sum)  %>%    ungroup()  %>%  
+                 arrange(Incident_severity)   ,  hole= 0.8, 
+              labels = ~factor(Incident_severity),  sort = FALSE,  marker = list(colors = cols ), type = 'pie',
+           values=~Incidents ,textposition = 'inside' ,  textinfo = 'label+percent', insidetextfont = list(color = "black")  ,
+                hoverinfo = 'text' ,showlegend = F  )          
+})
+
+
+#-----------safety cross---------------------------------------------   
+# linetype 0 = blank, 1 = solid, 2 = dashed, 3 = dotted, 4 = dotdash, 5 = longdash, 6 = twodash,
+  cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+
+output$safetycross <-     renderPlot({ 
+  (ggplot( VCA_Incidents  %>% 
+    select(x, y ,theday,Incident_severity)  %>%   arrange( x, y ,theday,desc(Incident_severity) )  %>% 
+          group_by( x, y ,theday ,Incident_severity) %>%   slice(1)      ,aes(x=reorder(x,as.integer(x)),
+          y=reorder(y,-as.integer(y)),fill = Incident_severity))  + 
+      geom_tile( aes( fill = Incident_severity,  width=1, height=1), color="black", size=0.1, linetype = 1) + 
+      # ggtitle("Kayzan Safety Cross Incidents by day of the week  days without incident")  +
+      geom_text(aes(label=theday))+   labs(x="",y="") + scale_fill_manual(values = cols ) +
+      theme(plot.title = element_text(size=18, hjust = 1), legend.title=element_blank(),
+            panel.background = element_rect(fill = "white", color =  "white"), plot.margin = unit ( c (0, 9, 0, 9), "cm"), 
+      panel.grid=element_blank(), panel.border=element_blank(), axis.title.x=element_blank(),   axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(), axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(),
+      axis.ticks=element_blank(), strip.background=element_blank(), legend.position = c(0.8, 0.8), 
+      legend.text=element_text(size=13),
+      legend.key.size=unit(0.7,"cm"),  legend.spacing.x=unit(0.5,"cm"))  +  #legend.justification="right",
+      guides(fill = guide_legend(reverse = TRUE))
+      #+inset_element(p=my_image, 0, 0.62, 0.37, 1,align_to = 'plot' ,on_top = TRUE,clip = FALSE,ignore_tag = FALSE) 
+  ) })   #size=15
+
+
+ 
+#--------------safety sunburst ------------- 
+     
+output$starburst  <- renderPlotly(  {
+    cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+    
+     color_index <- data.frame(
+        cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        labels = c(" _ Unknown" , "1 Insignificant" ,  "2 Minor" ,  "3 Moderate"  ,   "4 Major" ,  "5 Reportable Incident"   )) 
+
+     DF <-  VCA_Incidents %>%  #filter (# between(dmy(Incident_date), ymd("2018-07-01"), ymd("2020-07-01"))) 
+          left_join(color_index, by = c( "Incident_severity" = "labels")) %>% 
+       select ( Incident_severity , Coordinator, Outlet_name, Participant)    %>% 
+     mutate ( Incidents = 1)  %>%      
+     group_by ( Incident_severity , Coordinator, Outlet_name, Participant) %>%    
+                                              ## the order and hierarchy, the first column is the first layer ###
+     summarise(Incidents = sum(Incidents))   
+
+    
+        
+
+       sunburstDF <- as.sunburstDF(DF, valueCol = "Incidents")
+       sunburstDF$values <- abs(sunburstDF$values) 
+      
+            
+           sunburstDF <- merge(sunburstDF , color_index, by.x = "Incident_severity", by.y = "labels", all.x = TRUE)
+           
+           sunburstDF <- merge(sunburstDF , color_index,  by.x = "labels", by.y = "labels", all.x = TRUE)
+           
+           sunburstDF <-  mutate (sunburstDF,  cols = 
+                                    paste(if_else(is.na(cols.x), if_else(is.na(cols.y),"lightgrey", cols.y), cols.x)))
+          
+          
+     plot_ly(data = sunburstDF, ids = ~ids, labels= ~labels, parents = ~parents, 
+                    values= ~values, type='sunburst', marker = list(colors = ~cols)   )  %>% 
+          layout(title =  " Drill down Incidents by Severity " , font=4)
+
+  })        
+      
+      
+#-------------weekdays  safety sunburst -----------------   
+
+output$weekdaystarburst  <- renderPlotly(  {
+  
+    cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+    
+    color_index <- data.frame(
+        cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        labels = c(" _ Unknown" , "1 Insignificant" ,  "2 Minor" ,  "3 Moderate"  ,   "4 Major" ,  "5 Reportable Incident"   )) 
+    
+  
+     DFW <-  VCA_Incidents %>%  
+                          # between(dmy(Incident_date),  input$Timeframesafety3a[1],input$Timeframesafety3a[2]))    %>%  
+        select (Incident_weekday, Incident_severity , Coordinator, Outlet_name, Participant)    %>% 
+         mutate ( Incidents = 1)  %>%  
+         group_by (Incident_weekday , Incident_severity , Outlet_name, Coordinator,Participant) %>%  ## the order and hierarchy###
+         summarise(Incidents = sum(Incidents))   
+          
+          
+          as.sunburstDFW <- function(DFW, valueCol="Incidents"){  ### valueCol is the column to sum as the value  ###
+                require(data.table)
+                
+                colNamesDFW <- names(DFW)
+                
+                if(is.data.table(DFW)){
+                  DTW <- copy(DFW)
+                } else {
+                  DTW <- data.table(DFW, stringsAsFactors = FALSE)
+                }
+                
+                DTW[, root := "Incldient Weekday"]   ### name in the middle ###
+                colNamesDTW <- names(DTW)
+                
+                if(is.null(valueCol)){
+                  setcolorder(DTW, c("root", colNamesDFW))
+                } else {
+                  setnames(DTW, valueCol, "values", skip_absent=TRUE)
+                  setcolorder(DTW, c("root", setdiff(colNamesDFW, valueCol), "values"))
+                }
+                
+                hierarchyCols <- setdiff(colNamesDTW, "values")
+                hierarchyList <- list()
+                
+                for(i in seq_along(hierarchyCols)){
+                  currentCols <- colNamesDTW[1:i]
+                  if(is.null(valueCol)){
+                    currentDTW <- unique(DTW[, ..currentCols][, values := .N, by = currentCols], by = currentCols)
+                  } else {
+                    currentDTW <- DTW[, lapply(.SD, sum, na.rm = TRUE), by=currentCols, .SDcols = "values"]
+                  }
+                  setnames(currentDTW, length(currentCols), "labels")
+                  hierarchyList[[i]] <- currentDTW
+                }
+                
+                hierarchyDTW <- rbindlist(hierarchyList, use.names = TRUE, fill = TRUE)
+                
+                parentCols <- setdiff(names(hierarchyDTW), c("labels", "values"))
+                hierarchyDTW[, parents := apply(.SD, 1, function(x){fifelse(all(is.na(x)),
+                          yes = NA_character_, no = paste(x[!is.na(x)], sep = ":", collapse = " - "))}), .SDcols = parentCols]
+                hierarchyDTW[, ids := apply(.SD, 1, function(x){paste(x[!is.na(x)], collapse = " - ")}),
+                            .SDcols = c("parents", "labels")]
+               # hierarchyDT[, c(parentCols) := NULL]
+                return(hierarchyDTW)
+              }
+
+
+        
+
+    
+      sunburstDFW <- as.sunburstDFW(DFW, valueCol = "Incidents")
+      sunburstDFW$values <- abs(sunburstDFW$values) 
+      
+      
+          
+     sunburstDFW <- merge(sunburstDFW , color_index, by.x = "Incident_severity", by.y = "labels", all.x = TRUE)
+           
+     sunburstDFW <- merge(sunburstDFW , color_index,  by.x = "labels", by.y = "labels", all.x = TRUE)
+           
+           sunburstDFW <-  mutate (sunburstDFW,  cols = 
+                                    paste(if_else(is.na(cols.x), if_else(is.na(cols.y),"lightgrey", cols.y), cols.x)))
+          
+
+          
+
+     plot_ly(data = sunburstDFW, sort = FALSE , ids = ~ids, labels= ~labels, parents = ~parents, 
+                    values= ~values, type='sunburst', marker = list(colors = ~cols)   )    %>%   
+               layout(title = " Drill down Incidents by Weekday " , font=4)
+  })        
+
+
+  
+#--------------hours safety sunburst -----------------
+
+output$hoursstarburst  <- renderPlotly(  {
+
+     cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
+            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
+    
+    color_index <- data.frame(
+        cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        labels = c(" _ Unknown" , "1 Insignificant" ,  "2 Minor" ,  "3 Moderate"  ,   "4 Major" ,  "5 Reportable Incident"   )) 
+    
+  
+     DFH <-  VCA_Incidents %>%  
+                          # between(dmy(Incident_date),  input$Timeframesafety3a[1],input$Timeframesafety3a[2]))    %>%  
+        select (Incident_hour, Incident_severity , Coordinator, Outlet_name, Participant)    %>% 
+         mutate ( Incidents = 1)  %>%  
+         mutate ( Incident_hourx  = as.character(Incident_hour) , Incident_hourn  = as.numeric(Incident_hour) )  %>%   
+         group_by ( Incident_hourx , Incident_severity , Outlet_name, Coordinator,Participant) %>%  ## the order and hierarchy###
+         summarise(Incidents = sum(Incidents))   
+          
+          
+          as.sunburstDFH <- function(DFH, valueCol="Incidents"){  ### valueCol is the column to sum as the value  ###
+                require(data.table)
+                
+                colNamesDFH <- names(DFH)
+                
+                if(is.data.table(DFH)){
+                  DTH <- copy(DFH)
+                } else {
+                  DTH <- data.table(DFH, stringsAsFactors = FALSE)
+                }
+                
+                DTH[, root := "Incldient Hour"]   ### name in the middle ###
+                colNamesDTH <- names(DTH)
+                
+                if(is.null(valueCol)){
+                  setcolorder(DTH, c("root", colNamesDFH))
+                } else {
+                  setnames(DTH, valueCol, "values", skip_absent=TRUE)
+                  setcolorder(DTH, c("root", setdiff(colNamesDFH, valueCol), "values"))
+                }
+                
+                hierarchyCols <- setdiff(colNamesDTH, "values")
+                hierarchyList <- list()
+                
+                for(i in seq_along(hierarchyCols)){
+                  currentCols <- colNamesDTH[1:i]
+                  if(is.null(valueCol)){
+                    currentDTH <- unique(DTH[, ..currentCols][, values := .N, by = currentCols], by = currentCols)
+                  } else {
+                    currentDTH <- DTH[, lapply(.SD, sum, na.rm = TRUE), by=currentCols, .SDcols = "values"]
+                  }
+                  setnames(currentDTH, length(currentCols), "labels")
+                  hierarchyList[[i]] <- currentDTH
+                }
+                
+                hierarchyDTH <- rbindlist(hierarchyList, use.names = TRUE, fill = TRUE)
+                
+                parentCols <- setdiff(names(hierarchyDTH), c("labels", "values"))
+                hierarchyDTH[, parents := apply(.SD, 1, function(x){fifelse(all(is.na(x)),
+                          yes = NA_character_, no = paste(x[!is.na(x)], sep = ":", collapse = " - "))}), .SDcols = parentCols]
+                hierarchyDTH[, ids := apply(.SD, 1, function(x){paste(x[!is.na(x)], collapse = " - ")}),
+                            .SDcols = c("parents", "labels")]
+               # hierarchyDT[, c(parentCols) := NULL]
+                return(hierarchyDTH)
+              }
+
+
+        
+
+    
+      sunburstDFH <- as.sunburstDFH(DFH, valueCol = "Incidents")
+      sunburstDFH$values <- abs(sunburstDFH$values) 
+      
+      
+          
+     sunburstDFH <- merge(sunburstDFH , color_index, by.x = "Incident_severity", by.y = "labels", all.x = TRUE)
+           
+     sunburstDFH <- merge(sunburstDFH , color_index,  by.x = "labels", by.y = "labels", all.x = TRUE)
+           
+           sunburstDFH <-  mutate (sunburstDFH,  cols = 
+                                    paste(if_else(is.na(cols.x), if_else(is.na(cols.y),"lightgrey", cols.y), cols.x)))
+          
+
+          
+
+     plot_ly(data = sunburstDFH, sort = FALSE , ids = ~ids, labels= ~labels, parents = ~parents, 
+                    values= ~values, type='sunburst', marker = list(colors = ~cols)   )    %>% 
+          layout(title = " Drill down Incidents by Hour of the day " , font=4)
+  }) 
+
+#--------------Incidentsgrouped list ---not used as yet -----------------------  
+ 
+output$inc2a  <- renderPlotly(  { 
+  
+  plot_ly() %>%   add_table(data=  VCA_Incidents %>%  filter ( Incident_severity != " _ Unknown"    ) %>%
+      mutate ( Incidents = 1 )      %>%  
+      group_by(TheFirstOfMonth, Incident_severity ) %>% summarise_at(vars(Incidents), sum)  %>%   ungroup()  %>% 
+      arrange(TheFirstOfMonth, Incident_severity)  ,  rownames = TRUE )
+})
+  
+
+
+
+ #--- not used - alternative Incidents by weekday------------------------------------------- 
+ 
+#output$safetyweekday <-  renderPlot ({ 
+#  (ggplot(VCA_Incidents %>% # filter(between(dmy(Incident_date),input$Timeframesafety1[1], input$Timeframesafety1[2]) )  %>%
+#    mutate(daysort = wday(dmy(Incident_date)) ) %>% group_by(Incident_severity, Incident_weekday) %>%  arrange(daysort) ,
+#    aes(x=daysort, fill=Incident_severity)) + 
+#    geom_bar(  stat="count",na.rm=TRUE) +
+##      scale_fill_manual(values = colorlookup ) +
+#      theme(    panel.background = element_rect(color="white"), #legend.position = c(0.7, 0.6), 
+#      legend.text=element_text(size=13),legend.key.size=unit(0.7,"cm"),  legend.spacing.x=unit(0.5,"cm"))     + 
+#      legend(1.2, .5, legend =   c(" _ Unknown","1 Insignificant","2 Minor" ,"3 Moderate" ,  "4 Major" , "5 Reportable Incident"  ), 
+#      fill = c("light grey", "green" , "forestgreen" , "yellow",  "#FF9F00",  "red" ),
+#      density = c(NA, NA, 10, 30), angle = c(NA, NA, 30, -30)) + 
+#      labs(x= ' ', y='Number of Incidents') +   coord_polar( )  + theme_minimal()
+# ) })
+
+
+
+#------ Client funding Util  ---------Bar top and bottom 10 ----------------  
+      # VCA_Funding_utilisation$Funding_from_month <- round_date(ymd(fundingutil$Funding_from), unit = "month") 
+   
+ output$FundingUtilisation<-   renderPlotly({ 
+ 
+
+    VCA_Funding_utilisation$brks <- cut(as.numeric(VCA_Funding_utilisation$Utilisation_to_date), 
+       breaks = c(-999, 0.8, 1.2, 999) ,labels = c("Under using their Plan", "Good Plan Utilisation","Over using their Plan"))
+
+ ggplotly(ggplot(VCA_Funding_utilisation  %>% 
+      filter (  Funding_Current == 'Current Funding' & Participant >= 'Client 194543'&  Participant < 'Client 195500')   %>%  
+       mutate(   perc_time_complete = round(percent_through , digits = 2),
+                perc_budget_spent = round(Utilisation_to_date  , digits = 2),
+                perc_time_complete_text = percent(percent_through),
+                perc_budget_spent_text = percent(Utilisation_to_date ),
+                progress_perc = round(Percent_available / 100.0 , digits = 2),
+                progress_perc_text = percent(Percent_available / 100.0    ,
+                ))   %>% 
+      select(Participant,perc_time_complete,perc_budget_spent,perc_time_complete_text, perc_budget_spent_text,brks,
+           progress_perc, progress_perc_text , Budget, Total_services) ,
+       aes(Participant,   perc_budget_spent,
+                text = paste( '<br />Client: ', Participant,
+                           '<br />% of time through the plan:', if_else(is.na(perc_time_complete_text), "[no data]", 
+                                perc_time_complete_text),
+                           '<br />% of $ still available :', if_else( is.na(progress_perc_text), "[no data]", 
+                                progress_perc_text),
+                           '<br />% Current Utilisation  :', perc_budget_spent_text,
+                           '<br />--------------',
+                           '<br />Spent:', paste0("$", Total_services),
+                           '<br />Budget:', paste0("$", Budget) ))) + theme_minimal() +
+      geom_bar(width = .8,  stat="identity", 
+               mapping = aes(x=reorder(Participant, -perc_budget_spent), 
+                             y=perc_time_complete),  na.rm = TRUE,  fill = "#E8E8E8") +
+      geom_bar(width = .5,   stat="identity",  mapping = aes(x=reorder(Participant, -perc_budget_spent), 
+                             y=perc_budget_spent, fill = brks,  alpha = .5)) +
+   
+      geom_linerange(stat = "identity",  aes(ymin = (0*progress_perc),  ymax = progress_perc), 
+                     na.rm = TRUE,  linetype = "solid",   size = 1) +
+      geom_point(aes(y = progress_perc), na.rm = TRUE) + 
+      geom_text(aes(  y = progress_perc, label=paste0(progress_perc * 100.0 , ' % of $', Budget , ' left' )),
+     nudge_x = 0.2 , size = 3) +
+      coord_flip() +
+      #scale_fill_gradient2(low = "red",  mid = "green",  high = "red",  midpoint = 1) +
+      scale_fill_manual(values = c("#FF66FF", "#00FF00", "#FF3300")) +
+      
+      labs(  alpha = "Time", title = "Client Funding Package Utilisation            Grey: % through the plan, red/green: Current Utilisation rate ",
+        x = "Client ", y = "% Spent", fill = "% Spent",
+        caption = "Represents Plan entries only. \n 
+        Dotted line = 100%  Plan and 100% progress completion. \n 
+        Solid red line: 125% plan hours. \n 
+        Label: Represents total percent over plan.") +
+      geom_boxplot(aes(y = 1),   color = "black",  linetype = "dotted", size = .8) +
+                  #geom_boxplot(aes(y = 1.25),    color = "red",  size = .5) +
+      scale_y_continuous(labels = scales::percent)
+)
+ })
+
+
+#------Margins Transform input values Filter, group and summarise using the transformed input values ---------------
+ 
+  mlselected <- reactive({ input$l })
+  mposselected  <- reactive({ if_else(input$y ==  "Unit_price"| input$y ==  "Age", "dodge" , "stack" ,"stack" ) })
+
+  myselectedorig <- reactive({ input$y })
+  
+  myselected <- reactive({ "Approved_client_revenue" })  
+   # case_when(input$y == "Unit_price" ~ "Unit_price_1", input$y == "Expended" ~ "Expended_2",
+    #          input$y == "Client" ~ "no_Clients_2",     input$y == "Qty" ~ "Qty_2") })
+  
+    mystatselected <- reactive({  
+    case_when( input$y == "Expended" ~ "sum",  input$y == "Client" ~ "sum", input$y == "Qty" ~ "sum") 
+      
+    }) 
+
+    
+   myaxisselected <- reactive({  
+    case_when( input$y == "Expended" ~ "Revenue", input$y == "Client" ~ "Number of Clients",
+               input$y == "Qty" ~ "Hours") 
+    }) 
+   
+    mxaxisselected <- reactive({  
+    case_when(input$y == "Outlet" ~ "Location", input$y == "Expended" ~ "Revenue",
+              input$y == "Client" ~ "Number of Clients",
+            input$y == "Qty" ~ "Hours",   input$y == "Age" ~ "Age") 
+    })
+
+  mxselected  <-   reactive({case_when(input$y != "aaa" ~  "Service_month") })
+  mzselected <-    reactive({case_when(input$y != "aaa" ~   "outlet_name" )  })
+
+  mxaxisselected  <-   reactive({case_when(input$y != "aaa" ~  "Service month") })
+  mzaxisselected <-    reactive({case_when(input$y != "aaa" ~   "Location" )  })
+  
+
+  
+  
+  filtered_margins <- reactive({
+
+     VCA_Margins %>% 
+          # filter ( outlet_name  %in%  thelocs() |  thelocs()  == 'all'
+               #, between (Service_month,input$Timeframe[1], input$Timeframe[2]  ),
+        #outlet_name %in% input$SelectOutlet ,
+       # Service_desc %in% input$SelectServices ,
+       # Suburb %in% input$SelectSuburb ,
+       # Gender %in% input$SelectGender ,
+       # Preferred_language %in% input$SelectLanguage ,
+       # ATSI %in% input$SelectATSI,
+        #AgeBands %in% input$SelectAgeBands,
+       # Country_of_birth %in% input$SelectBirthCountry ,
+        #Ethnic_status %in% input$SelectEthnic ,
+      # Marital_status %in% input$SelectMarital
+      #)   %>%
+       #group_by(  outlet_name , Client) %>% 
+       #mutate (  no_Clients =  n_distinct(Service_month, outlet_name, Client) )  %>%
+      group_by( Start_month,  outlet_name ) %>% 
+      summarise(Approved_client_revenue = sum(as.double(Approved_client_revenue)), 
+               Worker_Base_Cost = sum(as.double(Worker_Base_Cost)), 
+               Approved_Base_Margin = sum(as.double(Approved_client_revenue)) - 
+                      sum(as.double(Worker_Base_Cost) )) %>% 
+      arrange( Approved_Base_Margin )
+    })
+  
+
+
+################## MARGINS #########################
+#-------Margins line Plot ----------------------------------------------- 
+       
+   output$Margins <-  renderPlotly(   
+      {  ggplotly ( 
+       ggplot(filtered_margins(),
+        aes(x = Start_month, y = Approved_Base_Margin, color =outlet_name, group=outlet_name)) +
+        geom_line(stat = "sum",  lwd = 1) +
+     
+
+     # geom_text( aes(x = Start_month, y = Approved_Base_Margin, label = outlet_name)) + 
+    #geom_area(aes(x = Start_month, y = Approved_Base_Margin, fill =outlet_name), 
+    #          stat = "sum", lwd = 1) +
+   # geom_bar(aes(x = Start_month, y = Approved_Base_Margin, fill = outlet_name), stat='sum',
+   #          position = "dodge" ,size = 3.5, show.legend = TRUE) + 
+                            #, fill= paste0(Daytype,' ',  HourType
+        #geom_abline(intercept = coefVal[1], slope = coefVal[2], lty = 1) + 
+        #geom_hline(yintercept = buyInMean, lty = 5) +
+       # annotate("text", x = beginTime, y = buyInMean * 0.9995, label = paste(round(buyInMean, digits = 3),"",sep="")) + 
+      #  geom_hline(yintercept = soldOutMean, lty = 5) +
+       # annotate("text", x = beginTime, y = soldOutMean * 1.0005, label = paste(round(soldOutMean, digits = 3),"",sep="")) + 
+     scale_x_date(breaks = "1 month",  labels=date_format("%Y-%m")) +
+     scale_y_continuous(labels = comma) +  
+    labs(x = "Month", y = " $ ", title = "Margins: Approved Client Revenue - Worker Timesheet Cost ") 
+       
+      
+     ,tooltip=c("Approved_Base_Margin", "outlet_name") 
+            # A = paste0('</br>Margin:',"Approved_Base_Margin",'</br>Location:',"outlet_name"))) +
+      )
+        
+      })
+  
+  #-------------- Margin Starburst ----------------------------
+   
+  output$marginstarburst  <- renderPlotly(  {
+  
+ 
+    
+  
+     DFM <-  
+     VCA_Margins %>% 
+         filter ( # outlet_name  %in%  thelocs() |  thelocs()  == 'all'
+               #, between (Service_month,input$Timeframe[1], input$Timeframe[2]  ),
+        #outlet_name %in%  input$SelectOutlet ,
+       # Service_desc %in% input$SelectServices ,
+       # Suburb %in% input$SelectSuburb ,
+       # Gender %in% input$SelectGender ,
+       # Preferred_language %in% input$SelectLanguage ,
+       # ATSI %in% input$SelectATSI,
+        #AgeBands %in% input$SelectAgeBands,
+       # Country_of_birth %in% input$SelectBirthCountry ,
+        #Ethnic_status %in% input$SelectEthnic ,
+      # Marital_status %in% input$SelectMarital
+      )   %>% 
+        mutate( Participant = paste0("Client " , Client_item_id)) %>% 
+      group_by(  outlet_name,  Participant) %>% 
+      summarise(Approved_client_revenue = sum(as.double(Approved_client_revenue)),
+            Worker_Base_Cost = sum(as.double(Worker_Base_Cost) ),
+            Approved_Base_Margin = 
+                   sum( as.double(Approved_client_revenue)) -  sum(as.double(Worker_Base_Cost) ))   %>% 
+        mutate( Participant = ifelse(is.na(Participant), "No Client Charges", Participant),
+              Approved_Margin_perc =  ifelse(Approved_client_revenue == 0 , 0, 
+                     100 * (   Worker_Base_Cost   /  Approved_client_revenue)) ,
+               margin_band = case_when(Approved_Margin_perc <= 0 ~ "Negative or 0%",
+                    Approved_Margin_perc > 0 &  Approved_Margin_perc <= 20 ~ "1% to 20%",   
+                    Approved_Margin_perc > 20  & Approved_Margin_perc <= 50   ~ "21% to 50%", 
+                    Approved_Margin_perc > 50  &  Approved_Margin_perc <= 70  ~ "51% to 70%",
+                    Approved_Margin_perc <= 100  ~ "71% to 100%",
+                    Approved_Margin_perc > 100 ~ "over 100%"),
+              Approved_Base_Margin = abs(Approved_Base_Margin) ,
+              Approved_Margin_perc = abs(Approved_Margin_perc ))  %>% 
+ 
+      select(margin_band,outlet_name, Participant, Approved_Margin_perc, Approved_Base_Margin)    %>% 
+      arrange(margin_band)     %>%    filter ( Approved_Margin_perc < 110)
+  
+     
+     as.sunburstDFM <- function(DFM, valueCol="Approved_Margin_perc"){ 
+                                        ### valueCol is the column to sum as the value  ###
+        require(data.table)
+        
+        colNamesDFM <- names(DFM)
+        
+        if(is.data.table(DFM)){ DTM <- copy(DFM)} else {DTM <- data.table(DFM, stringsAsFactors = FALSE)}
+        
+        DTM[, root := "Margin"]   ### name in the middle ###
+        colNamesDTM <- names(DTM)
+        
+        if(is.null(valueCol)){
+          setcolorder(DTM, c("root", colNamesDFM))
+        } else {
+          setnames(DTM, valueCol, "values", skip_absent=TRUE)
+          setcolorder(DTM, c("root", setdiff(colNamesDFM, valueCol), "values"))
+        }
+        
+        hierarchyCols <- setdiff(colNamesDTM, "values")
+        hierarchyList <- list()
+        
+        for(i in seq_along(hierarchyCols)){
+          currentCols <- colNamesDTM[1:i]
+          if(is.null(valueCol)){
+            currentDTM <- unique(DTM[, ..currentCols][, values := .N, by = currentCols], by = currentCols)
+          } else {
+            currentDTM <- DTM[, lapply(.SD, sum, na.rm = TRUE), by=currentCols, .SDcols = "values"]
+          }
+          setnames(currentDTM, length(currentCols), "labels")
+          hierarchyList[[i]] <- currentDTM
+        }
+        
+        hierarchyDTM <- rbindlist(hierarchyList, use.names = TRUE, fill = TRUE)
+        
+        parentCols <- setdiff(names(hierarchyDTM), c("labels", "values"))
+        hierarchyDTM[, parents := apply(.SD, 1, function(x){fifelse(all(is.na(x)),
+          yes = NA_character_, no = paste(x[!is.na(x)], sep = ":", collapse = " - "))}), .SDcols = parentCols]
+        hierarchyDTM[, ids := apply(.SD, 1, function(x){paste(x[!is.na(x)], collapse = " - ")}),
+                    .SDcols = c("parents", "labels")]
+       # hierarchyDT[, c(parentCols) := NULL]
+        return(hierarchyDTM)
+      }
+      sunburstDFM <- as.sunburstDFM(DFM, valueCol = "Approved_Margin_perc")
+
+       sunburstDFM  <-  sunburstDFM %>% mutate(
+              thecols = case_when(
+                is.na(parents) ~ "lightgrey",
+              margin_band == "Negative or 0%"   ~ "F7D8BA",
+              margin_band ==   "1% to 20%"   ~ "orange",   
+              margin_band ==   "21% to 50%"    ~ "E1F8DC", 
+              margin_band == "51% to 70%"    ~ "CAF1DE",
+              margin_band == "71% to 100%"  ~ "ACDDDE",
+              margin_band == "over 100%"  ~ "darkgreen",
+              labels == "Negative or 0%"  ~ "F7D8BA",
+              labels == "1% to 20%" ~ "orange",     #FFEF8DD
+              labels == "21% to 50%"   ~ "E1F8DC", 
+              labels == "51% to 70%"  ~ "CAF1DE",
+              labels ==  "71% to 100%"  ~ "ACDDDE",
+              labels ==  "over 100%" ~ "darkgreen"))
+      
+      plot_ly(data = sunburstDFM, sort = FALSE , ids = ~ids, labels= ~labels, parents = ~parents, 
+                    values= ~values, type='sunburst' ,
+              #  text = (~labels ~values), hoverinfo = 'text',
+           hovertemplate = 'Price: %{values:$.2f}<extra></extra>',
+                  marker = list(colors = ~thecols),  maxdepth = 4)    %>%   
+          layout(title = " Margin Starburst Drill down" , font=4)
+  })
+  
+       
+      
+          
+ #    sunburstDFM <- merge(sunburstDFM , color_index, by.x = "outlet_name", by.y = "outlet_name", all.x = TRUE)
+      # color_index <- data.frame(
+      #  cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ,
+       #          "#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red",
+       #          "#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red",
+       #          "#d3d3d3", "#90ee90"),
+      #  labels = as.list(VCA_Margins %>% distinct(outlet_name)   ) )
+    #   sunburstDFM <- merge(sunburstDFM , color_index,  by.x = "labels", by.y = "outlet_name", all.x = TRUE)
+     #sunburstDFM <-  mutate (sunburstDFM,  cols = 
+     #     paste(if_else(is.na(cols.x), if_else(is.na(cols.y),"lightgrey", cols.y), cols.x)))
+    # sunburstDFM <- sunburstDFM %>% filter ( values != 0 ) 
+  
+  
+ #-------------- Margin analytis----------------------------
+
+
+ 
+
+}, options = list(height = 1200)
+) # shinyapp
+
+
+```   
