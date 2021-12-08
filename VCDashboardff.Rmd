@@ -415,8 +415,8 @@ shinyApp(ui=
           ) ,
        
       bs4DashBody(id = "Out of the FOG",
-         use_theme(create_theme(  bs4dash_status(  primary = "#1117FB",warning = "#14F82F",
-           success = "#17EAF5" ,danger = "#7B0FE7" ) )), 
+         use_theme(create_theme(  bs4dash_status(  primary = "#337AB7",warning = "#5CB85C",
+           success = "#54B5D5" ,danger = "#B19CD9") )), 
                       #,info = NULL,  warning = NULL, danger = NULL, dark = NULL
          
                    
@@ -476,7 +476,7 @@ shinyApp(ui=
    bs4Card(  id = "OurClients",  # type = 1,   imageElevation = 4,  # height = "40px",
             title = userDescription(  title = span("Our Clients", style ="font-size: 30px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Clients.png?csf=1&web=1&e=iegsZp"), status = "primary",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/client%20white.png?csf=1&web=1&e=ikAUwD"), status = "primary",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, collapsible = TRUE,  #height = "100%", 
@@ -686,7 +686,7 @@ shinyApp(ui=
    bs4Card(  id = "OurSafety",   type = 1,   imageElevation = 4,  # height = "40px",
             title = userDescription(  title = span("Our Safety", style ="font-size: 30px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/safety.png?csf=1&web=1&e=jL2kDH"), status = "warning",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/safety%20white.png?csf=1&web=1&e=MgSRpe"), status = "warning",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
@@ -826,7 +826,7 @@ shinyApp(ui=
    bs4Card(  id = "OurWorkers",   type = 1,   imageElevation = 4,  # height = "40px",
             title = userDescription(  title = span("Our Workers", style ="font-size: 30px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/workers.png?csf=1&web=1&e=YWgKVm"), status = "success",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/worker%20white.png?csf=1&web=1&e=J2jOi7"), status = "success",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
@@ -965,7 +965,7 @@ shinyApp(ui=
    bs4Card(  id = "OurBusiness",   type = 1,   imageElevation = 4,  # height = "40px",
             title = userDescription(  title = span("Our Business", style ="font-size: 30px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/business.jpg?csf=1&web=1&e=S9BDnA"), status = "danger",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/business%20white.png?csf=1&web=1&e=yIG53h"), status = "danger",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
@@ -989,7 +989,17 @@ shinyApp(ui=
                                             style ="font-size: 25px; color: black;" ),elevation = 5,
                   plotlyOutput("Margins",  height = "550px"))
           
-          )
+          ), 
+
+  tags$head(tags$style(
+    HTML(
+      "div.widget-user-image > img.img-circle {
+          border-radius: 0%;
+          height: 100px;
+          width: 100px;
+        }"
+    )
+  ))
 
 
 #####################-END Sustainability-#####################################################
