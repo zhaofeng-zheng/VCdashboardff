@@ -115,7 +115,7 @@ print(filename)
 
 }
 
-
+VCA_Clients_view <- VCA_Clients_view  %>% mutate ( Participant = paste0("Client ",Client_item_id ))
 #VCA_Clients_actuals_monthly 
 servicemonthmin <-  min(dmy(VCA_Clients_actuals_monthly$Service_month)) 
 servicemonthmax <-  max(dmy(VCA_Clients_actuals_monthly$Service_month)) 
@@ -417,6 +417,9 @@ shinyApp(ui=
       bs4DashBody(id = "Out of the FOG",
          use_theme(create_theme(  bs4dash_status(  primary = "#337AB7",warning = "#5CB85C",
            success = "#54B5D5" ,danger = "#B19CD9") )), 
+        # use_theme(create_theme(  bs4dash_status(  primary = "#1117FB",warning = "#14F82F",
+         #  success = "#17EAF5" ,danger = "#7B0FE7" ) )), 
+         
                       #,info = NULL,  warning = NULL, danger = NULL, dark = NULL
          
                    
@@ -474,9 +477,9 @@ shinyApp(ui=
  #####################-Clients-#####################################################------------   
 
    bs4Card(  id = "OurClients",  # type = 1,   imageElevation = 4,  # height = "40px",
-            title = userDescription(  title = span("Our Clients", style ="font-size: 30px; color: white" ) , 
+            title = userDescription(  title = span("Our Clients", style ="font-size: 25px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/client%20white.png?csf=1&web=1&e=ikAUwD"), status = "primary",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/client%20white1.png?csf=1&web=1&e=MQATfk"), status = "primary",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, collapsible = TRUE,  #height = "100%", 
@@ -487,14 +490,15 @@ shinyApp(ui=
             controlbarIcon = shiny::icon("filter"),  fixed = TRUE),
           
           bs4DashControlbar ( br(),  br(),  br(),  br(),  br(), br(),
-              "Filters and Selections ", disable = FALSE,width = 250,skin = "light", status = "white",
+               span("      Filters and Selections ", style ="font-size: 15px; color: white" )  , disable = FALSE,
+               width = 250,skin = "light", status = "white",
             elevation = 6,   collapsed = TRUE ,  minified = FALSE,  expandOnHover = TRUE, startOpen = FALSE, opacity = 0,
             bs4Card( width = 12, elevation = 5,
             selectInput('x','Timeframe:',choices = c("Service month" = "Service_month" ),selected = "Service_month"),
             selectInput('y', 'Values:', choices = c( "Revenue" = "Expended", "Number of Active Clients" = "Client" , 
                     "Service Hours" = "Qty",   "Average Unit Price" = "Unit_price","Average Age" = "Age"),
                     selected = "Expended"),
-            selectInput('l', 'Filters and Groups', 
+            selectInput('l', 'Legend', 
                   choices = c( "Outlet" = "outlet_name", "Perferred Language" = "Preferred_language",
                     "Gender" = "Gender", "ATSI" = "ATSI","Age Bands" = "AgeBands",
                     "Country of Birth" = "Country_of_birth", "Ethnic status" = "Ethnic_status",
@@ -548,8 +552,8 @@ shinyApp(ui=
 
             pickerInput(
                 inputId = "SelectGender", label = "Select or Search for Gender:", 
-                selected = unique(VCA_Clients_actuals_monthly$Gender),
-                choices = unique(VCA_Clients_actuals_monthly$Gender),
+                selected = unique(VCA_Clients_actuals_monthly$Gender.x),
+                choices = unique(VCA_Clients_actuals_monthly$Gender.x),
                 multiple = TRUE,
                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
                           'style' = "btn-hover color-5" , liveSearchStyle	 = "contains",  showContent=TRUE ),
@@ -558,8 +562,8 @@ shinyApp(ui=
             
             pickerInput(
                 inputId = "SelectAgeBands", label = "Select or Search for Age Bands :", 
-                selected = unique(VCA_Clients_actuals_monthly$AgeBands),
-                choices = unique(VCA_Clients_actuals_monthly$AgeBands),
+                selected = unique(VCA_Clients_actuals_monthly$AgeBands.x),
+                choices = unique(VCA_Clients_actuals_monthly$AgeBands.x),
                 multiple = TRUE,
                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
                           'style' = "btn-hover color-1" , liveSearchStyle	 = "contains",  showContent=TRUE ),
@@ -568,8 +572,8 @@ shinyApp(ui=
 
             pickerInput(
                 inputId = "SelectLanguage", label = "Select or Search for Preferred language:", 
-                selected = unique(VCA_Clients_actuals_monthly$Preferred_language),
-                choices = unique(VCA_Clients_actuals_monthly$Preferred_language),
+                selected = unique(VCA_Clients_actuals_monthly$Preferred_language.x),
+                choices = unique(VCA_Clients_actuals_monthly$Preferred_language.x),
                 multiple = TRUE,
                  options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
                           'style' = "btn-hover color-6" , liveSearchStyle	 = "contains",  showContent=TRUE ),
@@ -578,8 +582,8 @@ shinyApp(ui=
 
           pickerInput(
                 inputId = "SelectATSI", label = "Select or Search for ATSI status:", 
-                selected = unique(VCA_Clients_actuals_monthly$ATSI),
-                choices = unique(VCA_Clients_actuals_monthly$ATSI),
+                selected = unique(VCA_Clients_actuals_monthly$ATSI.x),
+                choices = unique(VCA_Clients_actuals_monthly$ATSI.x),
                 multiple = TRUE,
                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,
                           'style' = "btn-hover color-7" , liveSearchStyle	 = "contains",  showContent=TRUE),
@@ -588,8 +592,8 @@ shinyApp(ui=
 
           pickerInput(
                 inputId = "SelectBirthCountry", label = "Select or Search for Country of birth:", 
-                selected = unique(VCA_Clients_actuals_monthly$Country_of_birth),
-                choices = unique(VCA_Clients_actuals_monthly$Country_of_birth),
+                selected = unique(VCA_Clients_actuals_monthly$Country_of_birth.x),
+                choices = unique(VCA_Clients_actuals_monthly$Country_of_birth.x),
                 multiple = TRUE,
                  options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  
                           'style' = "btn-hover color-8" , liveSearchStyle	 = "contains",  showContent=TRUE ),
@@ -598,8 +602,8 @@ shinyApp(ui=
 
           pickerInput(
                 inputId = "SelectEthnic", label = "Select or Search for Ethnic status:", 
-                selected = unique(VCA_Clients_actuals_monthly$Ethnic_status),
-                choices = unique(VCA_Clients_actuals_monthly$Ethnic_status),
+                selected = unique(VCA_Clients_actuals_monthly$Ethnic_status.x),
+                choices = unique(VCA_Clients_actuals_monthly$Ethnic_status.x),
                 multiple = TRUE,
                  options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
                           'style' = "btn-hover color-9" , liveSearchStyle	 = "contains",  showContent=TRUE ),
@@ -608,8 +612,8 @@ shinyApp(ui=
 
           pickerInput(
                 inputId = "SelectMarital", label = "Select or Search for Marital status:", 
-                selected = unique(VCA_Clients_actuals_monthly$Marital_status),
-                choices = unique(VCA_Clients_actuals_monthly$Marital_status),
+                selected = unique(VCA_Clients_actuals_monthly$Marital_status.x),
+                choices = unique(VCA_Clients_actuals_monthly$Marital_status.x),
                 multiple = TRUE, 
                  options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE, 
                      'style' = "btn-hover color-10" , liveSearchStyle	 = "contains",  showContent=TRUE  ),
@@ -620,13 +624,11 @@ shinyApp(ui=
           
 
          bs4Card( width = 12,  title= span("Client Demographics ", style ="font-size: 25px; color: black;" ),elevation = 5,     
-                plotlyOutput("Demographics" ) ),
+                plotlyOutput("Demographics",  height = "100%" ) ),
          br(),
          br(), 
-         bs4Card( width = 12,  title= span("Client Demographics ", style ="font-size: 25px; color: black;" ), elevation = 5, 
-                br(),
-                br(),
-                plotlyOutput("Demographicspie")),
+         bs4Card( width = 12,  title= span("Client Demographics % ", style ="font-size: 25px; color: black;" ), elevation = 5, 
+                plotlyOutput("Demographicspie",  height = "100%")),
          br(),
          br(),
          bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,       
@@ -635,14 +637,14 @@ shinyApp(ui=
          br(),
          bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,       
                 plotlyOutput("ClientCohortAging",  height = "100%")),
-         br(),
-         br(),
-         bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,      
-                plotlyOutput("ClientCohortRevenue", height = "100%")) ,
-         br(),
-         br(),
-         bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,      
-                 plotlyOutput("ClientCohortCycle",  height = "100%" )),
+         #br(),
+         #br(),
+         #bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,      
+         #       plotlyOutput("ClientCohortRevenue", height = "100%")) ,
+         #br(),
+         #br(),
+         #bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,      
+         #        plotlyOutput("ClientCohortCycle",  height = "100%" )),
                        # plotlyOutput("ClientCohortCyclemulti1",  height = "100%" ),
                        # plotlyOutput("ClientCohortCyclemulti2",  height = "100%" ),
                        # plotlyOutput("ClientCohortDrops",  height = "100%" ),
@@ -659,16 +661,7 @@ shinyApp(ui=
          bs4Card( width = 12,  title= span("Funding Utilisation ", style ="font-size: 25px; color: black;" ), elevation = 5,   
               plotlyOutput("FundingUtilisation"  ,   height = "620px" )) ,                    
                       #    reactableOutput("ClientUtiltable") , 
-         br(),
-         br(),  
-         bs4Card( width = 12,  title= span("Vacant Shifts ", style ="font-size: 25px; color: black;" ),  elevation = 5,  
-              plotlyOutput("unallocatedshifts") ) ,
-                          #    leafletOutput(outputId = "mymap"), 
-                          #this allows me to put the checkmarks ontop of the map to allow people
-                          #to view earthquake depth or overlay a heatmap
-                          # absolutePanel(top = 60, left = 20, 
-                          #      checkboxInput("markers", "Depth", FALSE),
-                          #     checkboxInput("heat", "Heatmap", FALSE)   ),
+        
          br(),
          br(), 
          bs4Card( width = 12,  title= span("Un filled shift Demand ", style ="font-size: 25px; color: black;" ),  
@@ -684,10 +677,10 @@ shinyApp(ui=
  #####################-Safety-#####################################################------------   
 
    bs4Card(  id = "OurSafety",   type = 1,   imageElevation = 4,  # height = "40px",
-            title = userDescription(  title = span("Our Safety", style ="font-size: 30px; color: white" ) , 
+            title = userDescription(  title = span("Our Safety", style ="font-size: 25px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/safety%20white.png?csf=1&web=1&e=MgSRpe"), status = "warning",
-            # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/safety-first-png-18139%20(2).png?csf=1&web=1&e=BnuIq3"), status = "warning",
+            # headerBorder = TRUE, controlbar_icon = "cogs",bohttps://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/safety-first-png-18139%20(2).png?csf=1&web=1&e=upB4XzxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
             maximizable	= TRUE ,collapsed =  TRUE,  maximized	= FALSE,   elevation = 4 ,
@@ -697,7 +690,8 @@ shinyApp(ui=
             controlbarIcon = shiny::icon("filter"),  fixed = FALSE),
           
           bs4DashControlbar (  br(),  br(),  br(),  br(),  br(), br(),
-              "Filters and Selections ", disable = FALSE,width = 250, skin = "light", status = "white",
+              span("      Filters and Selections ", style ="font-size: 15px; color: white" ) ,
+               disable = FALSE,width = 250, skin = "light", status = "white",
             elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE,
              bs4Card( width = 12, elevation = 5,                                    
           sliderInput( "Timeframesafety1",label = p("Incident dates:"),  
@@ -795,9 +789,7 @@ shinyApp(ui=
                    elevation = 5,
                   plotlyOutput("incpieline", height = "620px")) ,  #plotlyOutput("inc2a",height = "650px"),
           
-          bs4Card(width = 12,title= span("Starburst drilldown: Incident Severity", 
-                                         style ="font-size: 25px; color: black;" ),elevation = 5,
-                  plotlyOutput("starburst", height = "620px")),
+
   
           bs4Card( width = 12,  title= span("Kanban Safety Cross: Maximum Incident Severity by day of the month", 
                                             style ="font-size: 25px; color: black;" ),elevation = 5,
@@ -824,20 +816,21 @@ shinyApp(ui=
  #####################-Workers-#####################################################------------   
 
    bs4Card(  id = "OurWorkers",   type = 1,   imageElevation = 4,  # height = "40px",
-            title = userDescription(  title = span("Our Workers", style ="font-size: 30px; color: white" ) , 
+            title = userDescription(  title = span("Our Workers", style ="font-size: 25px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/worker%20white.png?csf=1&web=1&e=J2jOi7"), status = "success",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/worker%20white1.png?csf=1&web=1&e=HIu7Lk"), status = "success",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
             maximizable	= TRUE ,collapsed =  TRUE,  maximized	= FALSE,   elevation = 4 ,
           
           bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
-          skin = "light", status = "warning", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
+          skin = "light", status = "white", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
             controlbarIcon = shiny::icon("filter"),  fixed = FALSE),
           
           bs4DashControlbar (   br(),  br(),  br(),  br(),  br(), br(),
-              "Filters and Selections ", disable = FALSE,width = 250,skin = "light", status = "warning",
+              span("      Filters and Selections ", style ="font-size: 15px; color: white" ) ,
+              disable = FALSE,width = 250,skin = "light", status = "white",
             elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE,
                                                 
            bs4Card( width = 12, elevation = 5,
@@ -949,11 +942,22 @@ shinyApp(ui=
                 multiple = TRUE, 
                 options = pickerOptions( 'live-search' = TRUE,actionsBox = TRUE,  ),
                 choicesOpt = list(style = rep(('box-shadow:
-                     0 4px 15px 0 rgba(236, 116, 149, 0.75);color:"white";'),100))))) 
+                     0 4px 15px 0 rgba(236, 116, 149, 0.75);color:"white";'),100))))), 
                 
 
      #   , splitLayout(plotlyOutput("WDemographics", height =  "100%")
        #            ,plotlyOutput("WDemographicspie", height =  "100%"))
+     
+        br(),
+         br(),  
+         bs4Card( width = 12,  title= span("Predictive Recruitment: Worker target profile: Availability ", style ="font-size: 25px; color: black;" ),  elevation = 5,  
+              plotlyOutput("unallocatedshifts") )
+                          #    leafletOutput(outputId = "mymap"), 
+                          #this allows me to put the checkmarks ontop of the map to allow people
+                          #to view earthquake depth or overlay a heatmap
+                          # absolutePanel(top = 60, left = 20, 
+                          #      checkboxInput("markers", "Depth", FALSE),
+                          #     checkboxInput("heat", "Heatmap", FALSE)   ),
      
    ),        
 
@@ -963,20 +967,21 @@ shinyApp(ui=
 #####################-Sustainability-#####################################################------------   
 
    bs4Card(  id = "OurBusiness",   type = 1,   imageElevation = 4,  # height = "40px",
-            title = userDescription(  title = span("Our Business", style ="font-size: 30px; color: white" ) , 
+            title = userDescription(  title = span("Our Business", style ="font-size: 25px; color: white" ) , 
                   # subtitle = span("_", style ="font-size: 25px; color: #1117FB" ) ,
-            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/business%20white.png?csf=1&web=1&e=yIG53h"), status = "danger",
+            image = "https://visicaseaustralia.sharepoint.com/:i:/r/sites/DataAnalytics-liftingthefog/Shared%20Documents/Analytics/Data/Devin%20zheng%20images/business%20white1.png?csf=1&web=1&e=mugE0g"), status = "danger",
             # headerBorder = TRUE, controlbar_icon = "cogs",boxToolSize = "lg",
             #labelText = span("Our Sustainability", style ="font-size: 30px; color: white;" ), 
             closable = FALSE ,width = 12,  solidHeader = TRUE, height = "100%", collapsible = TRUE, 
             maximizable	= TRUE ,collapsed = TRUE ,maximized	= FALSE,   elevation = 4 ,
           
           bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
-          skin = "light", status = "danger", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
+          skin = "light", status = "white", border = FALSE   ,compact = TRUE ,#sidebarIcon = shiny::icon("bars"),
             controlbarIcon = shiny::icon("filter"),  fixed = FALSE),
           
           bs4DashControlbar (   br(),  br(),  br(),  br(),  br(), br(),
-              "Filters and Selections ", disable = FALSE,width = 250,skin = "light", status = "white",
+              span("      Filters and Selections ", style ="font-size: 15px; color: white" ) ,
+              disable = FALSE,width = 250,skin = "light", status = "white",
             elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE),
           
         
@@ -989,17 +994,7 @@ shinyApp(ui=
                                             style ="font-size: 25px; color: black;" ),elevation = 5,
                   plotlyOutput("Margins",  height = "550px"))
           
-          ), 
-
-  tags$head(tags$style(
-    HTML(
-      "div.widget-user-image > img.img-circle {
-          border-radius: 0%;
-          height: 100px;
-          width: 100px;
-        }"
-    )
-  ))
+          )
 
 
 #####################-END Sustainability-#####################################################
@@ -1067,19 +1062,19 @@ server = function(input, output,session) {
   filtered_plot <- reactive({
 
        VCA_Clients_actuals_monthly %>% 
-          # filter ( outlet_name  %in%  thelocs() |  thelocs()  == 'all'
-               #, between (Service_month,input$Timeframe[1], input$Timeframe[2]  ),
-        #outlet_name %in% input$SelectOutlet ,
-       # Service_desc %in% input$SelectServices ,
-       # Suburb %in% input$SelectSuburb ,
-       # Gender %in% input$SelectGender ,
-       # Preferred_language %in% input$SelectLanguage ,
-       # ATSI %in% input$SelectATSI,
-        #AgeBands %in% input$SelectAgeBands,
-       # Country_of_birth %in% input$SelectBirthCountry ,
-        #Ethnic_status %in% input$SelectEthnic ,
-      # Marital_status %in% input$SelectMarital
-      #)   %>%
+           filter ( #outlet_name  %in%  thelocs() |  thelocs()  == 'all' , 
+               between (Service_month,input$Timeframe[1], input$Timeframe[2]  ),
+        outlet_name %in% input$SelectOutlet ,
+        Service_desc %in% input$SelectServices ,
+        Street_address_Suburb.x %in% input$SelectSuburb ,
+        Gender.x %in% input$SelectGender ,
+        Preferred_language.x %in% input$SelectLanguage ,
+        ATSI.x %in% input$SelectATSI,
+        AgeBands.x %in% input$SelectAgeBands,
+        Country_of_birth.x %in% input$SelectBirthCountry ,
+        Ethnic_status.x %in% input$SelectEthnic ,
+        Marital_status.x %in% input$SelectMarital
+      )   %>%
        group_by(  outlet_name , Client) %>% 
        mutate (  no_Clients =  n_distinct(Service_month, outlet_name, Client))    %>%
       group_by( Service_month , outlet_name) %>% 
@@ -1090,11 +1085,9 @@ server = function(input, output,session) {
 
     
   filtered_plot_pie <- reactive({  
-     VCA_Clients_actuals_monthly %>%   #filter(Client  %in%  input$SelectClient ,
-          # outlet_name %in% input$SelectOutlet 
-          # ,    between (Service_month),input$Timeframe[1], input$Timeframe[2]  )
-          #  )     %>%
-      
+     VCA_Clients_actuals_monthly %>%   filter(Client  %in%  input$SelectClient ,
+           outlet_name %in% input$SelectOutlet 
+           ,    between (Service_month,input$Timeframe[1], input$Timeframe[2]  ))    %>%
            group_by(across(.cols = c(lselected() )))   %>% 
            summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
                na.rm = TRUE))   %>% select ( lselected(),   yselected())   })
@@ -1272,7 +1265,7 @@ output$ClientCohortAging <-  renderPlotly( {
    
   ggplotly ({
     ( ggplot(Activebymonthplot_pct, aes(x=Retention_age, y=Percentage_of_Clients, 
-             group=Client_retention, colour=Client_retention),  
+             group=Client_retention, colour=Client_retention),   show.legend = FALSE,  
              text= paste('</br>Retained in : ',Retention_age,'</br> Commenced in : ',Client_retention   ) ) + 
         geom_line(size=1,alpha = 3/10 , linejoin = "round" )  +
         #geom_point(size=1) +
@@ -1835,7 +1828,8 @@ output$unallocatedshifts  <- renderPlotly(  {
                              mutate (      Start_date =  ymd(Start_date)  , 
                              Start_month = floor_date(Start_date, 'month') )  %>%  
         filter ( Funding_type_name != "002-Transport (auto payments)" #, Suburb %in% input$SelectSuburbU ,
-  #Suburb != 'WACOL',  Suburb != '',  Suburb != 'NAMBOUR',#between(Start_date , '2021-09-01','2022-01-31' )
+                                        #Suburb != 'WACOL',  Suburb != '',  Suburb != 'NAMBOUR'
+            ,between(Start_date , '2021-09-01','2022-06-30' )
   ) %>%  select (  Start_month  ,  Daytype, HourType, Estimated_client_cost, Shift_hours)   %>%  
 group_by(Start_month  ,  Daytype, HourType)  %>%  
        summarise_at(vars(Estimated_client_cost, Shift_hours), sum) #   %>%   filter (Shift_hours > 20 )   
@@ -2795,7 +2789,7 @@ output$incpieline  <- renderPlotly(  {
                  arrange(TheFirstOfMonth, Incident_severity)   ,  
                  x= ~TheFirstOfMonth, y=~Incidents,  type="scatter", mode="lines+markers", color=~Incident_severity,
                   colors=cols,   xaxis='x2', yaxis='y2' ) %>%
-              layout(  xaxis2 = list(domain = c(0.2, 0.9), anchor='y2' , categoryorder = "array",
+              layout(  xaxis2 = list(domain = c(0.3, 0.7), anchor='y2' , categoryorder = "array",
                 #  title= list(text=paste0("        Safety Calendar: Incidents by month and Severity " ) , font=list(size=15)),   
               categoryarray = sort(unique(VCA_Incidents$TheFirstOfMonth))), 
               yaxis2 = list(domain = c(0.35, 0.75), anchor='x2'), showlegend = T ) %>% 
@@ -3337,24 +3331,26 @@ output$inc2a  <- renderPlotly(  {
 
        sunburstDFM  <-  sunburstDFM %>% mutate(
               thecols = case_when(
+             
                 is.na(parents) ~ "lightgrey",
-              margin_band == "Negative or 0%"   ~ "F7D8BA",
-              margin_band ==   "1% to 20%"   ~ "orange",   
-              margin_band ==   "21% to 50%"    ~ "E1F8DC", 
-              margin_band == "51% to 70%"    ~ "CAF1DE",
-              margin_band == "71% to 100%"  ~ "ACDDDE",
-              margin_band == "over 100%"  ~ "darkgreen",
-              labels == "Negative or 0%"  ~ "F7D8BA",
-              labels == "1% to 20%" ~ "orange",     #FFEF8DD
-              labels == "21% to 50%"   ~ "E1F8DC", 
-              labels == "51% to 70%"  ~ "CAF1DE",
-              labels ==  "71% to 100%"  ~ "ACDDDE",
-              labels ==  "over 100%" ~ "darkgreen"))
+              margin_band == "Negative or 0%"   ~ "FF0099",
+              margin_band ==   "1% to 20%"   ~ "CCFF00",   
+              margin_band ==   "21% to 50%"    ~ "33FF00", 
+              margin_band == "51% to 70%"    ~ "00FF66",
+              margin_band == "71% to 100%"  ~ "FF9900",
+              margin_band == "over 100%"  ~ "green",
+              labels == "Negative or 0%"  ~ "FF0099",
+              labels == "1% to 20%" ~ "CCFF00",     #FFEF8DD
+              labels == "21% to 50%"   ~ "33FF00", 
+              labels == "51% to 70%"  ~ "00FF66",
+              labels ==  "71% to 100%"  ~ "FF9900",
+              labels ==  "over 100%" ~ "green"))
       
       plot_ly(data = sunburstDFM, sort = FALSE , ids = ~ids, labels= ~labels, parents = ~parents, 
-                    values= ~values, type='sunburst' ,
-              #  text = (~labels ~values), hoverinfo = 'text',
-           hovertemplate = 'Price: %{values:$.2f}<extra></extra>',
+                    values= ~values, type='sunburst' , level = 3,
+              text = ~paste( " Margin ", 
+                paste0("$", formatC(as.numeric(values), format="f", digits=2, big.mark=","))), hoverinfo = 'text',
+           #hovertemplate = 'Price: %{values:$.2f}<extra></extra>',
                   marker = list(colors = ~thecols),  maxdepth = 4)    %>%   
           layout(title = " Margin Starburst Drill down" , font=4)
   })
