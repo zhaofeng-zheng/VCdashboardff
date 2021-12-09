@@ -102,17 +102,16 @@ library(shinyjs)
 Sys.setenv(TZ='Australia/NSW')
 
 ###############  Load the Visicase rn cube data  ################################
-vcfiles<-list.files(path = "//home/ffoley/ShinyApps/VCCubes_OM_test", pattern = "*.csv", full.names = T)
+vcfiles<-list.files(path = "D:/Work/data", pattern = "*.csv", full.names = T)
 
 for(file in vcfiles) 
 {
-filename <- str_replace_all(file, "//home/ffoley/ShinyApps/VCCubes_OM_test/", "")
+filename <- str_replace_all(file, "D:/Work/data/", "")
 filename <- str_replace_all(filename, ".csv","")
 filename <- str_replace_all(filename, "dbo.","")
 filename <- str_replace_all(filename, " ","")
-assign(filename,read.csv(file,header = TRUE))
+assign(filename,read.csv(file,header = TRUE, fileEncoding="UTF-8-BOM"))
 print(filename)
-
 }
 
 VCA_Clients_view <- VCA_Clients_view  %>% mutate ( Participant = paste0("Client ",Client_item_id ))
