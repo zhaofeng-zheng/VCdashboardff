@@ -1,5 +1,3 @@
-
-
 ---
 title: "Visicase Analytics - Out of the FOG"
 runtime: shiny
@@ -8,8 +6,6 @@ output:
       vertical_layout: scroll
       orientation: columns
 ---
-
-
 
 ```{r data, include=FALSE}
 #knitr::opts_chunk$set(echo = TRUE) 
@@ -102,11 +98,11 @@ library(shinyjs)
 Sys.setenv(TZ='Australia/NSW')
 
 ###############  Load the Visicase rn cube data  ################################
-vcfiles<-list.files(path = "D:/Work/data", pattern = "*.csv", full.names = T)
+vcfiles<-list.files(path = "//home/ffoley/ShinyApps/VCCubes_OM_test", pattern = "*.csv", full.names = T)
 
 for(file in vcfiles) 
 {
-filename <- str_replace_all(file, "D:/Work/data/", "")
+filename <- str_replace_all(file, "//home/ffoley/ShinyApps/VCCubes_OM_test/", "")
 filename <- str_replace_all(filename, ".csv","")
 filename <- str_replace_all(filename, "dbo.","")
 filename <- str_replace_all(filename, " ","")
@@ -386,9 +382,7 @@ viewByChoices <- c("Outlet Name" = "outlet_name",
 
      
    
-```  
-
-
+```
 
 ```{r,  message=FALSE, warning=FALSE}
 
@@ -631,7 +625,7 @@ shinyApp(ui=
          br(),
          br(),
          bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,       
-           plotOutput("ClientRetentionAging",  height = "500px" ))  , 
+           plotlyOutput("ClientRetentionAging",  height = "500px" ))  , 
          br(),
          br(),
          bs4Card( width = 12,  title= span("Client Retention ", style ="font-size: 25px; color: black;" ), elevation = 5,       
@@ -1059,10 +1053,10 @@ server = function(input, output,session) {
   
   
   filtered_plot <- reactive({
-
-       VCA_Clients_actuals_monthly %>% 
-           filter ( #outlet_name  %in%  thelocs() |  thelocs()  == 'all' , 
-               between (Service_month,input$Timeframe[1], input$Timeframe[2]  ),
+    VCA_Clients_actuals_monthly %>%
+      filter (
+        #outlet_name  %in%  thelocs() |  thelocs()  == 'all' ,
+        between (Service_month, input$Timeframe[1], input$Timeframe[2]),
         outlet_name %in% input$SelectOutlet ,
         Service_desc %in% input$SelectServices ,
         Street_address_Suburb.x %in% input$SelectSuburb ,
@@ -1074,61 +1068,116 @@ server = function(input, output,session) {
         Ethnic_status.x %in% input$SelectEthnic ,
         Marital_status.x %in% input$SelectMarital
       )   %>%
-       group_by(  outlet_name , Client) %>% 
-       mutate (  no_Clients =  n_distinct(Service_month, outlet_name, Client))    %>%
-      group_by( Service_month , outlet_name) %>% 
-      summarise(across(where(is.numeric),list( mean,sum)))
-     })
+      group_by(outlet_name, Client) %>%
+      mutate (no_Clients =  n_distinct(Service_month, outlet_name, Client))    %>%
+      group_by(Service_month, outlet_name) %>%
+      summarise(across(where(is.numeric), list(mean, sum)))
+  })
 
 
 
     
-  filtered_plot_pie <- reactive({  
-     VCA_Clients_actuals_monthly %>%   filter(Client  %in%  input$SelectClient ,
-           outlet_name %in% input$SelectOutlet 
-           ,    between (Service_month,input$Timeframe[1], input$Timeframe[2]  ))    %>%
-           group_by(across(.cols = c(lselected() )))   %>% 
-           summarise(across(where(is.numeric),list( mean,sum, n_distinct) , 
-               na.rm = TRUE))   %>% select ( lselected(),   yselected())   })
+  filtered_plot_pie <- reactive({
+    VCA_Clients_actuals_monthly %>%   filter(
+      Client  %in%  input$SelectClient ,
+      outlet_name %in% input$SelectOutlet
+      ,
+      between (Service_month, input$Timeframe[1], input$Timeframe[2])
+    )    %>%
+      group_by(across(.cols = c(lselected())))   %>%
+      summarise(across(where(is.numeric), list(mean, sum, n_distinct) ,
+                       na.rm = TRUE))   %>% select (lselected(),   yselected())
+  })
   
 #------------------  print the current pie plot data --------------- for testing ------------------
-    output$filtered_plottable = DT::renderDataTable(filtered_plot_pie(), options = list(stateSave = TRUE))   
-    proxy <- dataTableProxy('filtered_plottable')
+    output$filtered_plottable <- DT::renderDataTable(filtered_plot_pie(), options = list(stateSave = TRUE))
+    proxy <- dataTableProxy("filtered_plottable")
 
 
 
 #-------Clients Demographics bar Plot ----------------------------------------------- 
-       
-   output$Demographics <-  renderPlotly(   
-      { ggplotly (
-         ggplot( filtered_plot(),aes_string(x = xselected() , y = yselected(), fill= zselected()  ) ) +
-        geom_bar( stat = "summary", fun = sum,  position = "stack"       ) +
-           scale_fill_manual( name = " " , values = c25) +
-         theme( axis.text.x = element_text(angle = 45, size=6), 
-                panel.background = element_rect(fill = "white")) +
-          scale_y_continuous(labels = comma) +  
-           scale_x_date(date_breaks = "1 month", labels = date_format("%Y-%m")) + 
-        labs(  y= yaxisselected() ,  x= xaxisselected() , tooltip = "text" )
-            ,  tooltip =  "all"  
-      )       %>%   layout(hovermode = "x",
-           yaxis = list(  format = '#,.2s', tickformat = '#,.2s'  ,      hoverformat = '#,.2s') ,
-           xaxis = list(  format = "%Y-%m") )
-      }) 
+   myColours <- c(
+     "#c9daf2", "#b8d7f4", "#b0daf7", "#a4dafa", "#97dafc", "#8ecffc", "#84c3fb", "#7bb7fb",       "#76b1fb", "#71abfa",
+     "#669fee", "#5b92e2", "#5086d6", "#4479ca", "#2d60b2", "#2253a6", "#16469a",
+     "#244792", "#324889", "#404981", "#47497d", "#4e4978"
+   )
+    
+              
+    output$Demographics <- renderPlotly({
+      ggplotly(
+        ggplot(
+          filtered_plot(),
+          aes_string(
+            x = xselected(),
+            y = yselected(),
+            fill = zselected()
+          )
+        ) +
+          geom_bar(
+            stat = "summary",
+            fun = sum,
+            position = "stack"
+          ) +
+          scale_fill_manual(name = " ", values = myColours) +
+          theme(
+            axis.text.x = element_text(angle = 45, size = 6),
+            panel.background = element_rect(fill = "white")
+          ) +
+          scale_y_continuous(labels = comma) +
+          scale_x_date(date_breaks = "1 month", labels = date_format("%Y-%m")) +
+          labs(
+            y = yaxisselected(),
+            x = xaxisselected(),
+            tooltip = "text"
+          ),
+        tooltip = "all"
+      ) %>% layout(
+        hovermode = "x",
+        yaxis = list(
+          format = "#,.2s",
+          tickformat = "#,.2s",
+          hoverformat = "#,.2s"
+        ),
+        xaxis = list(format = "%Y-%m")
+      )
+    })
+    
 #---------Clients Demographics Pie Plot -------------------------------------------------- 
  
-  output$Demographicspie <- renderPlotly(  { 
-    dplot <- setNames(filtered_plot_pie(), c("labels", "values"))
-    plot_ly(dplot ) %>%
-      add_pie(  labels = ~labels,  values = ~values,  #marker = list(colors = c25) ,
-          customdata = ~labels #,#color = c25   #, inherit = TRUE
-          , textinfo='label+percent',  insidetextorientation='radial')    %>% 
-          layout(title = list(text = paste0( " % of ", 
-              names(choicey[choicey == yselectedorig()]) , " by  ", names(choicel[choicel ==lselected() ]) )
-              , x = 0.1, font=4),  
-          legend=list(title=list( text=  names(choicel[choicel == lselected()])),
-              legend.position = "right",legend.key.width= unit(4, 'cm'),legend.title.alignment = "right")) %>%   
-          layout(hovermode = "x" )})
-  
+    output$Demographicspie <- renderPlotly({
+      dplot <- setNames(filtered_plot_pie(), c("labels", "values"))
+      plot_ly(
+        dplot,
+        labels =  ~ labels,
+        values =  ~ values,
+        type = "pie",
+        textposition = "inside",
+        textinfo = "label+percent",
+        insidetextfont = list(color = "#FFFFFF"),
+        hoverinfo = "text",
+        text =  ~ paste0(labels, "\n", values),
+        marker = list(
+          colors = myColours,
+          line = list(color = "#FFFFFF", width = 1)
+        ),
+        showlegend = TRUE
+      ) %>%
+        layout(
+          title = list(
+            text = paste0(" % of ",
+                          names(choicey[choicey == yselectedorig()]), " by  ", names(choicel[choicel == lselected()])),
+            x = 0.1,
+            font = 4
+          ),
+          legend = list(
+            title = list(text =  names(choicel[choicel == lselected()])),
+            legend.position = "right",
+            legend.key.width = unit(4, 'cm'),
+            legend.title.alignment = "right"
+          )
+        )
+    })
+    
 
 #--------------------  CLIENT Retention COHORT ------------------------------------------------
   
@@ -1148,80 +1197,129 @@ server = function(input, output,session) {
 
 #--------Client Cohort Analysis % over time  ---Plot------  
       
-  output$ClientRetentionAging <-   renderPlot( { 
+    output$ClientRetentionAging <- renderPlotly({
+      Activebymonth <-
+        VCA_Clients_actuals_monthly   %>%
+        #filter( Client %in%  input$SelectClientR ,
+        #    outlet_name %in%  input$SelectOutletR,
+        # Service_desc %in% input$SelectServicesR ,
+        #   Street_address_Suburb %in% input$SelectSuburbR ,
+        #   Gender %in% input$SelectGenderR ,
+        #  Preferred_language %in% input$SelectLanguageR ,
+        #  ATSI %in% input$SelectATSIR,
+        #  AgeBands %in% input$SelectAgeBandsR,
+        # Country_of_birth %in% input$SelectBirthCountryR ,
+        # Ethnic_status %in% input$SelectEthnicR ,
+        # Marital_status %in% input$SelectMaritalR  )    %>%
+        select (Client, Service_month, Expended) %>%  # store in cohort table, get from dbdata
+        group_by(Client) %>%
+        mutate(first = min(Service_month)) %>%                # for every user, find the first period
+        group_by(first, Service_month) %>%                    # group by this first period + the other periods
+        summarise(NumClients = n_distinct(Client)) %>% # for each combination, count the number of users
+        spread(Service_month, NumClients)                          # and make columns with period names
       
-    Activebymonth <-  
-      VCA_Clients_actuals_monthly   %>%
-          #filter( Client %in%  input$SelectClientR , 
-         #    outlet_name %in%  input$SelectOutletR, 
-            # Service_desc %in% input$SelectServicesR ,
-          #   Street_address_Suburb %in% input$SelectSuburbR ,
-          #   Gender %in% input$SelectGenderR ,
-           #  Preferred_language %in% input$SelectLanguageR ,
-           #  ATSI %in% input$SelectATSIR,
-           #  AgeBands %in% input$SelectAgeBandsR,
-            # Country_of_birth %in% input$SelectBirthCountryR ,
-            # Ethnic_status %in% input$SelectEthnicR ,
-            # Marital_status %in% input$SelectMaritalR  )    %>% 
-      select ( Client, Service_month, Expended) %>%  # store in cohort table, get from dbdata
-      group_by(Client) %>%
-      mutate(first = min(Service_month)) %>%                # for every user, find the first period
-      group_by(first, Service_month) %>%                    # group by this first period + the other periods
-      summarise(NumClients = n_distinct(Client)) %>% # for each combination, count the number of users
-      spread(Service_month, NumClients)                          # and make columns with period names 
-                      
-             
-#--- activemonthplot -----------------
- 
-Activebymonthplot <- 
-    data.frame(  Activebymonth = Activebymonth$first,check.rows = FALSE,
-       t(apply( select(as.data.frame(Activebymonth), 2:ncol(Activebymonth)), 1,  shiftrow )) )   
-       colnames(Activebymonthplot) <- c("Client_retention", sub("","month.",
-          str_pad(1:(ncol(Activebymonthplot)-1),2,pad = "0")))
-
+      
+      #--- activemonthplot -----------------
+      
+      Activebymonthplot <-
+        data.frame(Activebymonth = Activebymonth$first,
+                   check.rows = FALSE,
+                   t(apply(
+                     select(as.data.frame(Activebymonth), 2:ncol(Activebymonth)), 1,  shiftrow
+                   )))
+      colnames(Activebymonthplot) <-
+        c("Client_retention", sub("", "Month ",
+                                  str_pad(1:(
+                                    ncol(Activebymonthplot) - 1
+                                  ), 2, pad = "0")))
+      
       #--- and make column names readable # first should be "cohort" and the rest week.<number>, (padded)----------
-        colnames(Activebymonthplot) <-  
-               c("Client_retention", sub("","month.", str_pad(1:(ncol(Activebymonthplot)-1),2,pad = "0"))) 
-        
-      #----Perc data ----------------------------------      
-        Client_retention_perc <-
-              data.frame( Client_retention = Activebymonthplot$Client_retention,  check.rows = FALSE,
-              Activebymonthplot[,2:nrow(Activebymonthplot)+1] / Activebymonthplot[["month.01"]] )  
-           Activebymonthplot_pct <- 
-              gather(Client_retention_perc, "Retention_age", "Percentage_of_Clients" ,2:ncol(Client_retention_perc)) 
-  
-  
-      #---abs data 
+      colnames(Activebymonthplot) <-
+        c("Client_retention", sub("", "Month ", str_pad(1:(
+          ncol(Activebymonthplot) - 1
+        ), 2, pad = "0")))
       
-        Activebymonthplot_abs <-  
-          gather(Activebymonthplot,     "Retention_age", "Client_Count"  ,2:ncol(Activebymonthplot   ))   # }) 
-        labelnames <- 
-          c( Activebymonthplot_abs$Client_Count[1:(ncol(Activebymonthplot)-1)],
-          Activebymonthplot_pct$Percentage_of_Clients[(ncol(Activebymonthplot)):(nrow(Activebymonthplot_pct))]) 
-          labelnames  <- pretty_print(labelnames) 
-        
+      #----Perc data ----------------------------------
+      Client_retention_perc <-
+        data.frame(
+          Client_retention = Activebymonthplot$Client_retention,
+          check.rows = FALSE,
+          Activebymonthplot[, 2:nrow(Activebymonthplot) + 1] / Activebymonthplot[["Month 01"]]
+        )
+      Activebymonthplot_pct <-
+        gather(
+          Client_retention_perc,
+          "Retention_age",
+          "Percentage_of_Clients" ,
+          2:ncol(Client_retention_perc)
+        )
       
-      #---Client Cohort Analysis % over time data 
-            Activebymonthplotdata <- data.frame(
-            Client_retention     = Activebymonthplot_pct$Client_retention,
-            Client_retention_age = Activebymonthplot_pct$Retention_age,
-            Client_retention_percentage = Activebymonthplot_pct$Percentage_of_Clients,check.rows = FALSE)
       
-
-  ( ggplot(Activebymonthplotdata , aes(x = Client_retention_age, 
-                                       y = reorder(Client_retention, desc(Client_retention)))) +
-       geom_raster(aes(fill = Client_retention_percentage)) +
-            scale_fill_gradient(low = "red",  high = "green"
-         #   , labels = c(20, 40, 60, 80, 100),
-           #  breaks = c(20, 40, 60, 80, 100)
-            ,na.value = "white")         +
-            guides(fill=guide_colorbar(title='Retention %')) +
-      geom_text(aes(label = labelnames), color = "white",size=3) +
-            labs(x="Clients retained 'x' months after commencement", y="Client commencement month end " ) + 
-            ggtitle(paste("Client retention aging and % ( first column is number of new Clients each month ) ")) +
-            theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8), 
-            panel.background = element_rect(fill = "white")  ,plot.margin = unit(c(1,1,1,1), "cm"))    
-  ) })
+      #---abs data
+      
+      Activebymonthplot_abs <-
+        gather(Activebymonthplot,
+               "Retention_age",
+               "Client_Count"  ,
+               2:ncol(Activebymonthplot))   # })
+      labelnames <-
+        c(
+          Activebymonthplot_abs$Client_Count[1:(ncol(Activebymonthplot) - 1)],
+          Activebymonthplot_pct$Percentage_of_Clients[(ncol(Activebymonthplot)):(nrow(Activebymonthplot_pct))]
+        )
+      labelnames  <- pretty_print(labelnames)
+      
+      
+      #---Client Cohort Analysis % over time data
+      Activebymonthplotdata <- data.frame(
+        Client_retention     = Activebymonthplot_pct$Client_retention,
+        Client_retention_age = Activebymonthplot_pct$Retention_age,
+        Client_retention_percentage = Activebymonthplot_pct$Percentage_of_Clients,
+        check.rows = FALSE
+      )
+      
+      
+      ggplotly(
+        ggplot(
+          Activebymonthplotdata ,
+          aes(x = Client_retention_age,
+              y = reorder(
+                Client_retention, desc(Client_retention)
+              ),
+              text=paste0(Client_retention_age, " after ", Client_retention,
+                          "\nRetention percent ", Client_retention_percentage))
+        ) +
+          geom_raster(aes(fill = Client_retention_percentage)) +
+          scale_fill_gradient(
+            low = "#4e4978",
+            high = "#c9daf2"
+            #   , labels = c(20, 40, 60, 80, 100),
+            #  breaks = c(20, 40, 60, 80, 100)
+            ,
+            na.value = "white"
+          )         +
+          guides(fill = guide_colorbar(title = 'Retention %')) +
+          #geom_text(aes(label = labelnames), color = "white", size = 3) +
+          labs(x = "Clients retained 'x' months after commencement", y =
+                 "Client commencement month end ") +
+          ggtitle(
+            paste(
+              "Client retention aging and % ( first column is number of new Clients each month ) "
+            )
+          ) +
+          theme(
+            axis.text.x = element_text(
+              angle = 45,
+              hjust = 1,
+              size = 8
+            ),
+            panel.background = element_rect(fill = "white"),
+            plot.margin = unit(c(1, 1, 1, 1), "cm"),
+            plot.title = element_text(hjust=0.5, face="bold")
+          ),
+        tooltip="text"
+      )
+    })
 
       
 #-----------Client Cohort Aging Analysis  Plot --------------------------------------------
@@ -3379,4 +3477,4 @@ output$inc2a  <- renderPlotly(  {
 ) # shinyapp
 
 
-```   
+```
