@@ -98,11 +98,11 @@ library(shinyjs)
 Sys.setenv(TZ='Australia/NSW')
 
 ###############  Load the Visicase rn cube data  ################################
-vcfiles<-list.files(path = "//home/ffoley/ShinyApps/VCCubes_OM_test", pattern = "*.csv", full.names = T)
+vcfiles<-list.files(path = "D:/Work/data", pattern = "*.csv", full.names = T)
 
 for(file in vcfiles) 
 {
-filename <- str_replace_all(file, "//home/ffoley/ShinyApps/VCCubes_OM_test/", "")
+filename <- str_replace_all(file, "D:/Work/data/", "")
 filename <- str_replace_all(filename, ".csv","")
 filename <- str_replace_all(filename, "dbo.","")
 filename <- str_replace_all(filename, " ","")
@@ -1289,7 +1289,7 @@ server = function(input, output,session) {
               text=paste0(Client_retention_age, " after ", Client_retention,
                           "\nRetention percent ", Client_retention_percentage))
         ) +
-          geom_raster(aes(fill = Client_retention_percentage)) +
+          geom_tile(aes(fill = Client_retention_percentage)) +
           scale_fill_gradient(
             low = "#4e4978",
             high = "#c9daf2"
@@ -1324,7 +1324,7 @@ server = function(input, output,session) {
       
 #-----------Client Cohort Aging Analysis  Plot --------------------------------------------
 
-output$ClientCohortAging <-  renderPlotly( { 
+output$ClientCohortAging <-  renderPlotly({ 
    Activebymonth <-    VCA_Clients_actuals_monthly   %>%  
      #filter( Client %in%  input$SelectClientR ,  
    #  outlet_name %in%  input$SelectOutletR ,
@@ -1360,20 +1360,50 @@ output$ClientCohortAging <-  renderPlotly( {
   Activebymonthplot_pct <- 
         gather(Client_retention_perc, "Retention_age", "Percentage_of_Clients" ,2:ncol(Client_retention_perc)) 
    
-  ggplotly ({
-    ( ggplot(Activebymonthplot_pct, aes(x=Retention_age, y=Percentage_of_Clients, 
-             group=Client_retention, colour=Client_retention),   show.legend = FALSE,  
-             text= paste('</br>Retained in : ',Retention_age,'</br> Commenced in : ',Client_retention   ) ) + 
-        geom_line(size=1,alpha = 3/10 , linejoin = "round" )  +
-        #geom_point(size=1) +
-        geom_smooth(aes(group=1), method = "loess", size=3, colour="blue", se=FALSE) +
-        scale_fill_brewer(direction = -1) +
-        labs(title="Cohorts Retention ratio", tooltip = "text" ,color = "The Month Client Commenced Services" ) + 
-        labs(x="Client still active X months after Client commenced services",
-        y="% retained" ) + theme(axis.text.x = element_text(angle = 90, hjust = 1,size=8), 
-        panel.background = element_rect(fill = "white"))) 
-    }) 
-}) 
+ggplotly(
+  Activebymonthplot_pct[!is.na(Activebymonthplot_pct),] %>%
+    mutate(Client_retention = factor(Client_retention)) %>%
+    ggplot(
+      aes(
+        x = Retention_age,
+        y = Percentage_of_Clients,
+        group = Client_retention,
+        color = Client_retention,
+        text = paste(
+          '</br>Retained in: ',
+          Retention_age,
+          '</br>Commenced in: ',
+          Client_retention
+        )
+      )
+    ) +
+    geom_line(size = 1, alpha = 0.7) +
+    geom_smooth(
+      aes(group = 1),
+      method = "loess",
+      size = 2,
+      colour = "blue",
+      se = FALSE
+    ) + 
+    labs(
+      title = "Cohorts Retention ratio", 
+      color = "The Month Client Commenced Services",
+      x="Client still active X months after Client commenced services",
+      y="% retained"
+    ) +
+    theme(axis.title = element_text()) +
+    scale_colour_manual(values = c25) +
+    theme(
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1,
+        size = 8
+      ),
+      panel.background = element_rect(fill = "white")
+    ),
+  tooltip = "text"
+)
+})
           # (interval( round_date(min(ymd(Service_month)), "month"),
           # round_date(max(ymd(Service_month)), "month")) %/% months(1) ) ) %>%   
       
@@ -1932,7 +1962,7 @@ group_by(Start_month  ,  Daytype, HourType)  %>%
        summarise_at(vars(Estimated_client_cost, Shift_hours), sum) #   %>%   filter (Shift_hours > 20 )   
       ,aes(x= Start_month  , y=Shift_hours, fill= paste0(Daytype,' ',  HourType))) +
       geom_bar(stat='sum', size = 3.5, show.legend = TRUE) +
-      scale_fill_manual( name = " " , values = c25) +
+      scale_fill_manual(values = myColours) +
       labs(title = "Projected resource needs by Day / Time profiles ")   + 
       scale_x_date(breaks = "1 month", minor_breaks = "1 week", labels=date_format("%Y-%m")) +
        theme( axis.text.x = element_text(angle = 45, size=7), 
@@ -2050,19 +2080,38 @@ group_by(Start_month  ,  Daytype, HourType)  %>%
    #ot <- orangeDimContrib  %>% group_by(  Contributor,ContributorType, Dimension) %>% filter (Dimension !=  'NA' ) %>%
    #  select ( ContributorType, Contributor, Dimension, Changealytics_KPII )  %>% summarise_if(is.numeric, sum, na.rm = TRUE)
    
-    ot <- reactive ({ 
-      VCA_Unallocated_Shifts %>%  
-            mutate (Estimated_start =   as_datetime(Estimated_start) ,  Suburb = toupper(Suburb),
-                  Funding_type_name =   substr(Funding_type_name,1,20) , 
-            Estimated_end = as_datetime(Estimated_end), Start_date =  ymd(Start_date)  , 
-            Start_month = floor_date(Start_date, 'month') , Nodesize = Shift_hours / 100.0)    %>% 
-      filter ( Funding_type_name != "002-Transport (auto payments)"  #, Suburb %in% input$SelectSuburbU ,
-  #Suburb != 'WACOL',  Suburb != '',  Suburb != 'NAMBOUR',#between(Start_date , '2021-09-01','2022-01-31' 
-  ) %>%
-    select(Suburb,  Funding_type_name, Start_month, Participant,  Daytype, HourType,Shift_hours) %>%  
-     group_by(Suburb,  Funding_type_name, Start_month, Participant,  Daytype, HourType) %>%  
-    summarise_at(vars(Shift_hours ), sum, na.rm = TRUE)   %>%   
- arrange(Suburb,  Funding_type_name, Start_month,  Daytype, HourType )      }) 
+ ot <- reactive ({
+   VCA_Unallocated_Shifts %>%
+     mutate (
+       Estimated_start =   as_datetime(Estimated_start) ,
+       Suburb = toupper(Suburb),
+       Funding_type_name =   substr(Funding_type_name, 1, 20) ,
+       Estimated_end = as_datetime(Estimated_end),
+       Start_date =  ymd(Start_date)  ,
+       Start_month = floor_date(Start_date, 'month') ,
+       Nodesize = Shift_hours / 100.0
+     )    %>%
+     filter (Funding_type_name != "002-Transport (auto payments)") %>%   #, Suburb %in% input$SelectSuburbU ,
+     #Suburb != 'WACOL',  Suburb != '',  Suburb != 'NAMBOUR',#between(Start_date , '2021-09-01','2022-01-31'
+     select(
+       Suburb,
+       Funding_type_name,
+       Start_month,
+       Participant,
+       Daytype,
+       HourType,
+       Shift_hours
+     ) %>%
+     group_by(Suburb,
+              Funding_type_name,
+              Start_month,
+              Participant,
+              Daytype,
+              HourType) %>%
+     summarise_at(vars(Shift_hours), sum, na.rm = TRUE)   %>%
+     arrange(Suburb,  Funding_type_name, Start_month,  Daytype, HourType) %>% 
+     mutate("Shift hours" = Shift_hours)
+ }) 
    
   #  ot$percrank <- percent_rank(ot$Shift_hours)   
    # ot$percrankcol <-  cut(ot$percrank , breaks = c(0,10,100))
@@ -2075,15 +2124,35 @@ group_by(Start_month  ,  Daytype, HourType)  %>%
    # ot$Changealytics_KPII <- abs(ot$Changealytics_KPII  / 1000000)
 
     
- output$Unallocateddemandtree<- renderCollapsibleTree (
-
-      collapsibleTree(ot(), hierarchy=c( "Start_month",  "Daytype", "HourType", "Funding_type_name",
-                                       "Suburb",  "Participant","Shift_hours"),
-                root = deparse(substitute("Unallocated Demand")), inputId = NULL,
-                attribute =  "Shift_hours"  , aggFun = sum, fill = "lightsteelblue",
-                fillByLevel = FALSE , linkLength = NULL, fontSize = 10,
-                tooltip = TRUE, collapsed = TRUE,  # nodeSize = 20,
-                zoomable = TRUE, width = NULL, height = NULL) , quoted = FALSE)
+ output$Unallocateddemandtree <- renderCollapsibleTree (
+   collapsibleTree(
+     ot(),
+     hierarchy = c(
+       "Start_month",
+       "Daytype",
+       "HourType",
+       "Funding_type_name",
+       "Suburb",
+       "Participant",
+       "Shift hours"
+     ),
+     root = deparse(substitute("Unallocated Demand")),
+     inputId = NULL,
+     attribute =  "Shift hours"  ,
+     aggFun = sum,
+     fill = "lightsteelblue",
+     fillByLevel = FALSE ,
+     linkLength = NULL,
+     fontSize = 10,
+     tooltip = TRUE,
+     collapsed = TRUE,
+     # nodeSize = 20,
+     zoomable = TRUE,
+     width = NULL,
+     height = NULL
+   ) ,
+   quoted = FALSE
+ )
 
       #' # Use unsplash api to add in random photos to tooltip
 #ot$tooltip <- paste0(  ot$Client,
@@ -2333,39 +2402,72 @@ output$plot10 <-  renderPlot  ( {ggplot
 
      # input$thedowname <- reactive ({ "All"  })  
       color_index <- data.frame(
-        cols = c("#d3d3d3", "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ),
+        cols = c("#a6000e", "#b33702" , "#f7c200" , "#e7f700",  "#36f700",  "red"),
         labels = c(" _ Unknown" , "1 Insignificant" ,  "2 Minor" ,  "3 Moderate"  ,   "4 Major" ,  "5 Reportable Incident"   )) 
 
          thefilter <- reactiveValues()
        thefilter <-  reactive ({ if( thedowname$thedays[1]   == "all")   thedaynos  else   thedowname$thedays  })
                       #if(thedowname[1]  != "all") thedowname  else    thedaynos
        # printfilter <- isolate(thefilter) 
-output$safetyweekdayp <-  renderPlot( {(ggplot( VCA_Incidents %>%  #filter( Incident_weekday  %in%  thefilter() )  %>%  
-         mutate(Incident_weekday, Incidents = 1,  Weekdayno = lubridate::wday(dmy(Incident_date), week_start = 1))    %>%  
-         select (Incident_weekday , Incident_severity , Incidents , Weekdayno )    %>%   # Coordinator, Outlet_name, Participant
-         group_by ( Weekdayno, Incident_weekday,  Incident_severity ) %>%  # Outlet_name, Coordinator,Participant
-         summarise(Incidents = sum(Incidents))    %>%   
-          merge( color_index, by.x = "Incident_severity", by.y = "labels", all.x = TRUE)   %>%    
-          arrange(Weekdayno,Incident_severity)  %>% 
-          mutate(Incident_severity =factor(Incident_severity, 
-            levels =  c("5 Reportable Incident", "4 Major" , "3 Moderate" ,"2 Minor" ,  "1 Insignificant", " _ Unknown" )))) +
-            
-          geom_bar( aes(x=reorder(Incident_weekday,Weekdayno), y =Incidents,   fill = Incident_severity),stat="sum") +    
-          #, text=paste('</br>Weekday: ',Incident_weekday,'</br>Number of Incidents: ',Incidents, '</br>')
-          # alpha=Complexity,)) +  geom_bar(stat="identity",position="dodge", colour="black") + 
-          # scale_alpha_manual(values=c(0.1, 0.5, 1)) +
-            labs( #title = "Safety Calendar: Number of Incidents by Weekday and Severity",
-                 x = "Weekday of Incident",
-             y = "Number of Incidents") + 
-            theme_minimal() +  scale_fill_manual(values = cols ) + 
-            coord_polar(theta = "x",  start = 0, direction = 1, clip = "off")  + # scale_text(guide = 'none') +
-          theme( axis.title.x  = element_text( size = 15), 
-                  axis.title.y  = element_text( size = 15), 
-                  axis.ticks = element_blank(),    
-                  plot.title = element_text(size = 16, face = "bold")  )
-          #,tooltip = c("text")  mutate(tooltip = sprintf("Sepal Length: %1.2f\nSepal Width: %1.2f\nPetal Length: %1.2f\nPetal Width: %1.2f", Sepal.Length, Sepal.Width, Petal.Length, Petal.Width)) %>%    x = r*cos(theta) and y=r*sin(theta)     data$x <- data$r * sin(data$theta) + 0.5    data$y <- data$r * cos(data$theta) + 0.5
-        )
-})  
+output$safetyweekdayp <-
+ renderPlot({
+   (
+     ggplot(
+       VCA_Incidents %>%  #filter( Incident_weekday  %in%  thefilter() )  %>%
+         mutate(
+           Incident_weekday,
+           Incidents = 1,
+           Weekdayno = lubridate::wday(dmy(Incident_date), week_start = 1)
+         )    %>%
+         select (Incident_weekday , Incident_severity , Incidents , Weekdayno)    %>%   # Coordinator, Outlet_name, Participant
+         group_by (Weekdayno, Incident_weekday,  Incident_severity) %>%  # Outlet_name, Coordinator,Participant
+         summarise(Incidents = sum(Incidents))    %>%
+         merge(
+           color_index,
+           by.x = "Incident_severity",
+           by.y = "labels",
+           all.x = TRUE
+         )   %>%
+         arrange(Weekdayno, Incident_severity)  %>%
+         mutate(Incident_severity = factor(
+           Incident_severity,
+           levels =  c(
+             "5 Reportable Incident",
+             "4 Major" ,
+             "3 Moderate" ,
+             "2 Minor" ,
+             "1 Insignificant",
+             " _ Unknown"
+           )
+         ))
+     ) +
+       geom_bar(aes(
+         x = reorder(Incident_weekday, Weekdayno),
+         y = Incidents,
+         fill = Incident_severity
+       ), stat = "sum") +
+       #, text=paste('</br>Weekday: ',Incident_weekday,'</br>Number of Incidents: ',Incidents, '</br>')
+       # alpha=Complexity,)) +  geom_bar(stat="identity",position="dodge", colour="black") +
+       # scale_alpha_manual(values=c(0.1, 0.5, 1)) +
+       labs(#title = "Safety Calendar: Number of Incidents by Weekday and Severity",
+         x = "Weekday of Incident",
+         y = "Number of Incidents") +
+       theme_minimal() +  scale_fill_manual(values = cols) +
+       coord_polar(
+         theta = "x",
+         start = 0,
+         direction = 1,
+         clip = "off"
+       )  + # scale_text(guide = 'none') +
+       theme(
+         axis.title.x  = element_text(size = 15),
+         axis.title.y  = element_text(size = 15),
+         axis.ticks = element_blank(),
+         plot.title = element_text(size = 16, face = "bold")
+       )
+     #,tooltip = c("text")  mutate(tooltip = sprintf("Sepal Length: %1.2f\nSepal Width: %1.2f\nPetal Length: %1.2f\nPetal Width: %1.2f", Sepal.Length, Sepal.Width, Petal.Length, Petal.Width)) %>%    x = r*cos(theta) and y=r*sin(theta)     data$x <- data$r * sin(data$theta) + 0.5    data$y <- data$r * cos(data$theta) + 0.5
+   )
+ })  
  #thedegree <- ATAN  (( input$DblClick1$y - 24 ) / (input$DblClick1$x - 4) )  
 
         output$dblclick_info2 <- renderPrint({ # str(printtheweeknoclick) 
@@ -2534,63 +2636,118 @@ output$safetya <- renderPlotly ({
 
 
 
-output$safetyclock <-  renderPlot ({  
+output$safetyclock <-  renderPlot ({
+  Hrs  <- data.frame (Hrs24  = c(1:24))
+  # if (!is.null(click_data)) { idx <- click_data()$pointNumber + 1  }
+  TheHours <-
+    left_join(
+      Hrs ,
+      VCA_Incidents  %>%   filter (Incident_weekday %in% thefilter())    %>%
+        # Incident_severity !=   " _ Unknown")
+        mutate (Incidents = 1)   ,
+      by = c("Hrs24" = "Incident_hour")
+    )  %>%
+    mutate (
+      Incident_hour = Hrs24,
+      Incidents =  if_else(is.na(Incident_severity), 0, Incidents) ,
+      Incident_severity =  if_else(is.na(Incident_severity), " ", Incident_severity)
+    ) %>%
+    select (Incident_hour, Incident_severity , Incidents) %>%
+    group_by (Incident_hour, Incident_severity) %>%
+    summarise(across(cols = Incidents, .fns = sum))   #, fill= Incident_severity
   
-        Hrs  <- data.frame (Hrs24  = c(1:24))
-          # if (!is.null(click_data)) { idx <- click_data()$pointNumber + 1  }
-       TheHours <- left_join( Hrs , VCA_Incidents  %>%   filter (Incident_weekday %in% thefilter()  )    %>% 
-                                                      # Incident_severity !=   " _ Unknown")
-                                mutate (Incidents = 1)   ,
-                by = c("Hrs24" = "Incident_hour" )  )  %>%
-                 mutate (  Incident_hour = Hrs24,
-                  Incidents =  if_else(is.na(Incident_severity), 0, Incidents ) ,
-                    Incident_severity =  if_else(is.na(Incident_severity), " ", Incident_severity  ) ) %>%   
-               select ( Incident_hour, Incident_severity , Incidents ) %>% 
-                group_by ( Incident_hour, Incident_severity  ) %>%
-                summarise(across( cols=Incidents, .fns = sum ) )   #, fill= Incident_severity 
-    
-    
-     col_direction =   c(  "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
-            "3 Moderate" = "yellow",  "none" = "white",  "4 Major" = "#FF9F00", "5 Reportable Incident" = "red" )
-     maxy <- max(TheHours %>% group_by (Incident_hour) %>%  summarise_at(vars(Incidents),.funs="sum") ) 
-     TheHoursmatrix <- as.matrix(TheHours  %>%  dplyr::select ( Incident_hour, Incident_severity , Incidents) %>% 
-           pivot_wider(names_from = Incident_severity, values_from = Incidents)  %>%
-           mutate(across(.cols = everything(),(~ if_else(is.na(.x),0,.x)))) )
-     matcol <- ncol(TheHoursmatrix)
-     
-    circos.clear()
-      circos.par(gap.degree = 0, cell.padding = c(0, 0, 0, 0), start.degree = 90)  
-      circos.initialize("A",   xlim = c(0, 24))
-
-      circos.track(ylim = c(0, maxy),track.index = 1,  track.height= 	0.4,  #,   bg.border = NA
-            panel.fun = function(x, y) {  value = TheHoursmatrix[,2:matcol]   
-                  circos.barplot(value  , 1:24 - 0.5,  col = col_direction  ,bar_width = 0.8 ) })
-      
-      circos.yaxis(side="left", labels = TRUE,tick = TRUE,  track.index = 1 )
-      set_track_gap(mm_h(3)) # 3mm
-      circos.track(ylim = c(0, 1),   bg.border = NA )  #track.height= 	0.6
-      circos.axis(major.at = 0:24, labels = NULL, direction = "inside",  major.tick.length = mm_y(2))
-      circos.text(1:24, rep(1, 24) - mm_y(5), 1:24, facing = "downward")
-      
-      current.time = as.POSIXlt(Sys.time())
-      sec = ceiling(current.time$sec)
-      min = current.time$min
-      hour = current.time$hour
-      
-      sec.degree =  (90 - sec/60 * 360)
-      #arrows(0, 0, cos(sec.degree/180*pi)*0.45, sin(sec.degree/180*pi)*0.45)
-      
-      min.degree = (90 - min/60 * 360)
-      #arrows(0, 0, cos(min.degree/180*pi)*0.4, sin(min.degree/180*pi)*0.4, lwd = 3)   
-      
-      hour.degree =  (90 - hour/24 * 360 - min/60 * 360/24)
-      arrows(0, 0, cos(hour.degree/180*pi)*0.3, sin(hour.degree/180*pi)*0.3, lwd = 3 ) 
-            title(main=toString( thefilter() ) ,  cex = 0.75)
-      legend(x="topright",  cex = 1,bty='n' , # lwd = 1, #text.font = i, 
-              legend =c("1 Insignificant","2 Minor" ,"3 Moderate" , "4 Major" ,"5 Reportable Incident"  ), 
-             fill = c( "#90ee90" , "#228B22" , "yellow",  "#FF9F00",  "red" ), border = NULL,
-             title = "Incident Severity" )
-
+  
+  col_direction =   c(
+    "1 Insignificant" = "#90ee90",
+    "2 Minor"  = "#228B22",
+    "3 Moderate" = "yellow",
+    "none" = "white",
+    "4 Major" = "#FF9F00",
+    "5 Reportable Incident" = "red"
+  )
+  maxy <-
+    max(TheHours %>% group_by (Incident_hour) %>%  summarise_at(vars(Incidents), .funs =
+                                                                  "sum"))
+  TheHoursmatrix <-
+    as.matrix(
+      TheHours  %>%  dplyr::select (Incident_hour, Incident_severity , Incidents) %>%
+        pivot_wider(names_from = Incident_severity, values_from = Incidents)  %>%
+        mutate(across(.cols = everything(), (
+          ~ if_else(is.na(.x), 0, .x)
+        )))
+    )
+  matcol <- ncol(TheHoursmatrix)
+  
+  circos.clear()
+  circos.par(
+    gap.degree = 0,
+    cell.padding = c(0, 0, 0, 0),
+    start.degree = 90
+  )
+  circos.initialize("A",   xlim = c(0, 24))
+  
+  circos.track(
+    ylim = c(0, maxy),
+    track.index = 1,
+    track.height = 	0.4,
+    #,   bg.border = NA
+    panel.fun = function(x, y) {
+      value = TheHoursmatrix[, 2:matcol]
+      circos.barplot(value  , 1:24 - 0.5,  col = col_direction  , bar_width = 0.8)
+    }
+  )
+  
+  circos.yaxis(
+    side = "left",
+    labels = TRUE,
+    tick = TRUE,
+    track.index = 1
+  )
+  set_track_gap(mm_h(3)) # 3mm
+  circos.track(ylim = c(0, 1),   bg.border = NA)  #track.height= 	0.6
+  circos.axis(
+    major.at = 0:24,
+    labels = NULL,
+    direction = "inside",
+    major.tick.length = mm_y(2)
+  )
+  circos.text(1:24, rep(1, 24) - mm_y(5), 1:24, facing = "downward")
+  
+  current.time = as.POSIXlt(Sys.time())
+  sec = ceiling(current.time$sec)
+  min = current.time$min
+  hour = current.time$hour
+  
+  sec.degree =  (90 - sec / 60 * 360)
+  #arrows(0, 0, cos(sec.degree/180*pi)*0.45, sin(sec.degree/180*pi)*0.45)
+  
+  min.degree = (90 - min / 60 * 360)
+  #arrows(0, 0, cos(min.degree/180*pi)*0.4, sin(min.degree/180*pi)*0.4, lwd = 3)
+  
+  hour.degree =  (90 - hour / 24 * 360 - min / 60 * 360 / 24)
+  arrows(0,
+         0,
+         cos(hour.degree / 180 * pi) * 0.3,
+         sin(hour.degree / 180 * pi) * 0.3,
+         lwd = 3)
+  title(main = toString(thefilter()) ,  cex = 0.75)
+  legend(
+    x = "topright",
+    cex = 1,
+    bty = 'n' ,
+    # lwd = 1, #text.font = i,
+    legend = c(
+      "1 Insignificant",
+      "2 Minor" ,
+      "3 Moderate" ,
+      "4 Major" ,
+      "5 Reportable Incident"
+    ),
+    fill = c("#36f700" , "#e7f700" , "#f79000",  "#f75b00",  "#f70000"), 
+    border = NULL,
+    title = "Incident Severity"
+  )
+  
 })
 
   
@@ -2776,9 +2933,8 @@ output$safetyclocka   <- renderPlotly(  {
 
 
 output$safetyweekdaytype <- renderPlotly ({ 
-
-     cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#90ee90", "2 Minor"  = "#228B22",  
-            "3 Moderate" = "yellow",   "4 Major" = "#FF9F00", "5 Reportable Incident"  = "red" )
+     cols <- c( " _ Unknown" = "#d3d3d3", "1 Insignificant" = "#FF9F00", "2 Minor"  = "yellow",  
+            "3 Moderate" = "#228B22",   "4 Major" = "#90ee90", "5 Reportable Incident"  = "#d3d3d3" )
 
      plot_ly(  VCA_Incidents    %>% 
         mutate ( Incidents = 1 )  %>% 
