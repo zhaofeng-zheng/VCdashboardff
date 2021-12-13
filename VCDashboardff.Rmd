@@ -110,6 +110,49 @@ assign(filename,read.csv(file,header = TRUE, fileEncoding="UTF-8-BOM"))
 print(filename)
 }
 
+# VCA_Margins
+VCA_Margins$Client_item_id <- as.integer(VCA_Margins$Client_item_id)
+VCA_Margins$Outlet_item_id <- as.integer(VCA_Margins$Outlet_item_id)
+VCA_Margins <-
+  left_join(VCA_Margins,
+            VCA_Clients_view,
+            by = c("Client_item_id" = "Client_item_id"))
+VCA_Margins$Allocated_resource_item_id <-
+  as.integer(as.character(VCA_Margins$Allocated_resource_item_id))
+VCA_Margins$Temporary_allocated_resource_item_id <-
+  as.integer(as.character(VCA_Margins$Temporary_allocated_resource_item_id))
+VCA_Margins <-
+  left_join(
+    VCA_Margins,
+    VCA_Workers_view %>% rename(initial_worker = Team_Member) %>% select(initial_worker, Resource_item_id),
+    by = c("Allocated_resource_item_id" = "Resource_item_id")
+  )
+VCA_Margins <-
+  left_join(
+    VCA_Margins,
+    VCA_Workers_view %>% rename(sub_worker = Team_Member) %>% select(sub_worker, Resource_item_id),
+    by = c("Temporary_allocated_resource_item_id" = "Resource_item_id")
+  )
+VCA_Margins <-
+  mutate(VCA_Margins,
+         actual_worker = case_when(
+           !is.na(sub_worker) ~ sub_worker,!is.na(initial_worker) ~ initial_worker
+         ))
+VCA_Margins$Outlet_item_id <-
+  as.integer(as.character(VCA_Margins$Outlet_item_id))
+VCA_Margins$Client <- VCA_Margins$Participant
+VCA_Margins <-
+  left_join(VCA_Margins,
+            VCA_Outlets_View,
+            by = c("Outlet_item_id" = "outlet_item_id"))
+VCA_Margins <-
+  left_join(
+    VCA_Margins,
+    VCA_Outlets_View %>% rename(service_delivery_location_name = outlet_name) %>% select(service_delivery_location_name, outlet_item_id),
+    by = c("Outlet_item_id" = "outlet_item_id")
+  )
+
+
 VCA_Clients_view <- VCA_Clients_view  %>% mutate ( Participant = paste0("Client ",Client_item_id ))
 #VCA_Clients_actuals_monthly 
 servicemonthmin <-  min(dmy(VCA_Clients_actuals_monthly$Service_month)) 
@@ -127,16 +170,6 @@ VCA_Clients_actuals_monthly <- left_join(VCA_Clients_actuals_monthly, VCA_Outlet
 
 VCA_Clients_view <- VCA_Clients_view %>%     group_by(Client_item_id) %>%     filter(row_number()==1)
 VCA_Clients_actuals_monthly <- left_join(VCA_Clients_actuals_monthly, VCA_Clients_view, by=c("Client_id" = "Client_item_id"))
-
-# VCA_Margins
-VCA_Margins <- VCA_Margins %>% mutate ( Start_month = dmy(Start_month))
-VCA_Margins$Client_item_id <- as.integer(VCA_Margins$Client_item_id)
-VCA_Margins <- left_join(VCA_Margins, VCA_Clients_view, by=c("Client_item_id" = "Client_item_id"))
-VCA_Margins$Outlet_id <- as.integer(VCA_Margins$Outlet_item_id)
-VCA_Margins$Client <- VCA_Margins$Participant
-VCA_Margins <- left_join(VCA_Margins, VCA_Outlets_View, by=c("Outlet_item_id" = "outlet_item_id"))
-
-
 
 
 
@@ -358,7 +391,7 @@ colScale <- scale_colour_manual(name = "lselected",values = myColors)
            sep = "", collapse = "\n") }}
      no1 <- 1
      
-     #Create a custom color scale
+#Create a custom color scale
 #color_map <- setNames(c25, choicel)
 myColoursPos <- rep(c("#c9daf2","#b8d7f4","#b0daf7","#a4dafa","#97dafc", "#8ecffc","#84c3fb","#7bb7fb","#76b1fb","#71abfa",
                "#669fee","#5b92e2","#5086d6","#4479ca","#2d60b2","#2253a6","#16469a", 
@@ -371,7 +404,8 @@ names(myColoursNeg) = as.character(-length(myColoursNeg):-1)
 myColours = c(myColoursPos, myColoursNeg)
 # convert following columns to numeric
 columns_to_numeric <- c("Estimated_client_revenue", "Actual_client_revenue", "Approved_client_revenue",
-                        "Estimated_resource_cost", "Actual_resource_cost", "Approved_resource_cost")
+                        "Estimated_resource_cost", "Actual_resource_cost", "Approved_resource_cost",
+                        "Duration_in_min")
 VCA_Margins[columns_to_numeric] <- sapply(VCA_Margins[columns_to_numeric], as.numeric)
 VCA_Margins[columns_to_numeric][is.na(VCA_Margins[columns_to_numeric])] <- 0
 
@@ -396,8 +430,6 @@ viewByChoices <- c("Outlet Name" = "outlet_name",
 shinyApp(ui=   
    #  fluidPage(    #useWaiter #waiter_preloader(spin_fading_circles(), image = url),
      bs4DashPage(
-   
-  
        bs4DashNavbar( title = NULL, titleWidth = NULL,disable = FALSE,.list = NULL, leftUi = NULL,rightUi = NULL,
           skin = "light", status = "white", border = FALSE,compact = TRUE, sidebarIcon = shiny::icon("chart-line"),
           controlbarIcon = shiny::icon("chart-line"),  fixed = FALSE),
@@ -976,7 +1008,71 @@ shinyApp(ui=
               span("      Filters and Selections ", style ="font-size: 15px; color: white" ) ,
               disable = FALSE,width = 250,skin = "light", status = "white",
             elevation = 4,   collapsed = FALSE ,  minified = TRUE,  expandOnHover = TRUE, startOpen = TRUE),
-          
+          # Devin: marginBreakdown (stacked bar + datatable)
+          bs4Card(
+            width = 12,
+            title = span("Margin breakdown by outlet, client or worker",
+                         style = "font-size: 25px; color: black;"),
+            elevation = 5,
+            shinyjs::useShinyjs(),
+            plotlyOutput("marginBreakdown",  height = "550px"),
+            conditionalPanel("input.showData==true",
+                             dataTableOutput("dataTable")), 
+            selectInput(
+              "marginType",
+              "Margin Type",
+              choices = c(
+                "Estimated Margin" = "Estimated_margin",
+                "Actual Margin" = "Actual_margin",
+                "Approved Margin" = "Approved_margin",
+                "Actual Margin per Min" = "Actual_margin_per_min"
+              ),
+              selected = "Actual_margin"
+            ),
+            conditionalPanel(
+              "input.marginType != 'Actual_margin_per_min'",
+              selectInput(
+                "marginCalcType",
+                "Mean / Sum",
+                choices = c("Mean" = "mean",
+                            "Sum" = "sum"),
+                selected = "sum"
+              )
+            ),
+            selectInput(
+              "viewBy",
+              "View by Outlet, Client or Worker?",
+              choices = viewByChoices,
+              selected = "outlet_name"
+            ),
+            checkboxInput("showData", "Show Datatable"),
+            conditionalPanel(
+              "input.showData==true",
+              # dateRangeInput("date", "Date", servicemonthmin, servicemonthmax, servicemonthmin, servicemonthmax, format="dd-mm-yyyy"),
+              uiOutput("date"),
+              selectInput(
+                "outlet_name",
+                "Outlet Name",
+                choices = levels(factor(VCA_Margins$outlet_name)),
+                selectize = TRUE,
+                multiple = TRUE
+              ),
+              selectInput(
+                "client",
+                "Client",
+                choices = levels(factor(VCA_Margins$Client)),
+                selectize = TRUE,
+                multiple = TRUE
+              ),
+              selectInput(
+                "worker",
+                "Worker",
+                choices = levels(factor(VCA_Margins$actual_worker)),
+                selectize = TRUE,
+                multiple = TRUE
+              )
+            )
+          ), 
         
                 
           bs4Card( width = 12,  title= span("Margin Bands: Starburst Drilldown ", 
@@ -3493,6 +3589,236 @@ output$inc2a  <- renderPlotly(  {
       )
         
       })
+  
+  
+  #-------------- Margin breakdown (Devin) ----------------------------
+  yselected <- reactiveVal()
+  
+  
+  observeEvent(input$marginType, {
+    if (input$marginType != "Actual_margin_per_min") {
+      yselected(paste0(input$marginType, "_", input$marginCalcType))
+    } else{
+      yselected(input$marginType)
+    }
+  })
+  
+  observeEvent(input$viewBy, {
+    toggleState("outlet_name", condition = input$viewBy == "outlet_name")
+    toggleState("client", condition = input$viewBy == "Client")
+    toggleState("worker", condition = input$viewBy == "worker")
+  })
+  
+  marginBreakdownData <- reactive({
+    VCA_Margins %>%
+      select(
+        Client,
+        item_id,
+        item_type_cd,
+        Start_month,
+        Allocated_resource_item_id,
+        Client_item_id,
+        Outlet_item_id,
+        Case_Item_id,
+        Temporary_allocated_resource_item_id,
+        Estimated_client_revenue,
+        Actual_client_revenue,
+        Approved_client_revenue,
+        Estimated_resource_cost,
+        Actual_resource_cost,
+        Approved_resource_cost,
+        Worker_Base_Cost,
+        Service_Delivery_Location,
+        service_delivery_location_name,
+        Duration_in_min,
+        uom_cd,
+        unit_price_cy,
+        deliv_outlet_item_id,
+        initial_worker,
+        sub_worker,
+        actual_worker,
+        outlet_name
+      ) %>%
+      mutate(Start_month = dmy(Start_month)) %>%
+      mutate(Start_month = ym(paste0(
+        year(Start_month), "/", month(Start_month)
+      ))) %>%
+      mutate(
+        Estimated_margin = Estimated_client_revenue - Estimated_resource_cost,
+        Actual_margin = Actual_client_revenue - Actual_resource_cost - Worker_Base_Cost,
+        Approved_margin = Approved_client_revenue - Approved_resource_cost
+      ) %>%
+      mutate(no_Clients = 1) %>%
+      mutate(no_Workers = 1) %>%
+      group_by(Start_month,!!sym(input$viewBy)) %>%
+      summarise(across(where(is.numeric), list(
+        mean =  ~ mean(., na.rm = TRUE),
+        sum =  ~ sum(., na.rm = TRUE)
+      )), .groups = "keep") %>%
+      mutate(Actual_margin_per_min = Actual_margin_sum / Duration_in_min_sum) %>%
+      filter(!is.infinite(Actual_margin_per_min)) %>%
+      mutate(
+        across(where(is.numeric) & !Actual_margin_per_min, round, 2),
+        Actual_margin_per_min = round(Actual_margin_per_min, 5)
+      ) %>%
+      mutate(negMargin = !!sym(yselected()) < 0) %>%
+      filter(!is.na(!!sym(input$viewBy))) %>%
+      group_by(Start_month, negMargin) %>%
+      arrange(desc(!!sym(yselected())), .by_group = TRUE) %>%
+      mutate(rank = case_when(negMargin == FALSE ~ n():1,
+                              TRUE ~ -n():-1))
+  })
+  
+  
+  output$date <- renderUI({
+    servicemonthmin <- min(ymd(marginBreakdownData()$Start_month))
+    servicemonthmax <- max(ymd(marginBreakdownData()$Start_month))
+    dateRangeInput(
+      "date",
+      "Date",
+      servicemonthmin,
+      servicemonthmax,
+      servicemonthmin,
+      servicemonthmax
+    )
+  })
+  
+  output$dataTable <- renderDataTable({
+    req(marginBreakdownData(), input$date)
+    marginBreakdownData() %>%
+      filter(Start_month >= input$date[1] &
+               Start_month <= input$date[2]) %>%
+      filter(!!sym(input$viewBy) %in% c(input$outlet_name, input$client, input$worker))
+  })
+  
+  output$marginBreakdown <- renderPlotly({
+    ggplotly(
+      ggplot(
+        marginBreakdownData(),
+        aes(
+          x = Start_month,
+          y = !!sym(yselected()),
+          fill = ordered(rank),
+          text = case_when(
+            input$viewBy == "outlet_name" ~ paste0(
+              "Start month: ",
+              Start_month,
+              "\nOutlet name: ",
+              if (exists("outlet_name")) {
+                outlet_name
+              } else
+                "",
+              "\nTotal number of minutes worked: ",
+              Duration_in_min_sum,
+              "\nTotal no. of times clients are served in this region: ",
+              no_Clients_sum,
+              "\nActual margin per min in ",
+              if (exists("outlet_name"))
+                outlet_name,
+              ": ",
+              Actual_margin_per_min,
+              "\nTotal actual margin: ",
+              Actual_margin_sum,
+              "\nMargin ",
+              input$marginCalcType,
+              ": ",
+              !!sym(yselected())
+            ),
+            input$viewBy == "Client" ~ paste0(
+              "Start month: ",
+              Start_month,
+              "\nClient name: ",
+              if (exists("Client")) {
+                Client
+              } else
+                "",
+              "\nTotal number of minutes spent on ",
+              if (exists("Client")) {
+                Client
+              } else
+                "",
+              ": ",
+              Duration_in_min_sum,
+              "\nNo. of times ",
+              if (exists("Client")) {
+                Client
+              } else
+                "",
+              " is serviced: ",
+              no_Clients_sum,
+              "\nActual margin per min for ",
+              if (exists("Client"))
+                Client,
+              ": ",
+              Actual_margin_per_min,
+              "\nTotal actual margin: ",
+              Actual_margin_sum,
+              "\nMargin ",
+              input$marginCalcType,
+              ": ",
+              !!sym(yselected())
+            ),
+            input$viewBy == "actual_worker" ~ paste0(
+              "Start month: ",
+              Start_month,
+              "\nWorker name: ",
+              if (exists("actual_worker")) {
+                actual_worker
+              } else
+                "",
+              "\nTotal number of minutes ",
+              if (exists("actual_worker")) {
+                actual_worker
+              } else
+                "",
+              "has worked: ",
+              Duration_in_min_sum,
+              "\nNo. of times ",
+              if (exists("actual_worker")) {
+                actual_worker
+              } else
+                "",
+              " provided service: ",
+              no_Workers_sum,
+              "\nActual margin per min for ",
+              if (exists("actual_worker"))
+                actual_worker,
+              ": ",
+              Actual_margin_per_min,
+              "\nTotal actual margin: ",
+              Actual_margin_sum,
+              "\nMargin ",
+              input$marginCalcType,
+              ": ",
+              !!sym(yselected())
+            )
+          )
+        )
+      ) +
+        geom_bar(
+          stat = "identity",
+          width = 20,
+          color = "white",
+          size = 0.1
+        ) +
+        labs(
+          x = "Start date",
+          y = paste0("Sum of margin by ", names(viewByChoices)[viewByChoices == input$viewBy]),
+          tooltip = "all"
+        ) +
+        scale_fill_manual(values = myColours) +
+        theme(
+          panel.background = element_rect(fill = "white"),
+          axis.text.x = element_text(angle = 45, size = 10),
+          legend.position = "none"
+        ) +
+        scale_y_continuous(labels = comma) +
+        scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+        guides(fill = guide_legend(title = input$viewBy)),
+      tooltip = "text"
+    )
+  })
+  
   
   #-------------- Margin Starburst ----------------------------
    
