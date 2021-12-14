@@ -98,11 +98,11 @@ library(shinyjs)
 Sys.setenv(TZ='Australia/NSW')
 
 ###############  Load the Visicase rn cube data  ################################
-vcfiles<-list.files(path = "/home/ffoley/ShinyApps/VCCubs_OM_Test", pattern = "*.csv", full.names = T)
+vcfiles<-list.files(path = "D:/Work/data", pattern = "*.csv", full.names = T)
 
 for(file in vcfiles) 
 {
-filename <- str_replace_all(file, "/home/ffoley/ShinyApps/VCCubs_OM_Test/", "")
+filename <- str_replace_all(file, "D:/Work/data/", "")
 filename <- str_replace_all(filename, ".csv","")
 filename <- str_replace_all(filename, "dbo.","")
 filename <- str_replace_all(filename, " ","")
@@ -3592,23 +3592,24 @@ output$inc2a  <- renderPlotly(  {
   
   
   #-------------- Margin breakdown (Devin) ----------------------------
-  yselected <- reactiveVal()
-  
-  
+  # what is the stacked bar based on? Actual margin ? Estimated? or margin earned per min?
+  ySelected_Margin <- reactiveVal()
+
+
   observeEvent(input$marginType, {
     if (input$marginType != "Actual_margin_per_min") {
-      yselected(paste0(input$marginType, "_", input$marginCalcType))
+      ySelected_Margin(paste0(input$marginType, "_", input$marginCalcType))
     } else{
-      yselected(input$marginType)
+      ySelected_Margin(input$marginType)
     }
   })
-  
+
   observeEvent(input$viewBy, {
     toggleState("outlet_name", condition = input$viewBy == "outlet_name")
     toggleState("client", condition = input$viewBy == "Client")
     toggleState("worker", condition = input$viewBy == "worker")
   })
-  
+
   marginBreakdownData <- reactive({
     VCA_Margins %>%
       select(
@@ -3655,21 +3656,20 @@ output$inc2a  <- renderPlotly(  {
         mean =  ~ mean(., na.rm = TRUE),
         sum =  ~ sum(., na.rm = TRUE)
       )), .groups = "keep") %>%
-      mutate(Actual_margin_per_min = Actual_margin_sum / Duration_in_min_sum) %>%
+      mutate(Actual_margin_per_min = if(exists("Actual_margin_sum")){Actual_margin_sum}else 1 / Duration_in_min_sum) %>%
       filter(!is.infinite(Actual_margin_per_min)) %>%
       mutate(
         across(where(is.numeric) & !Actual_margin_per_min, round, 2),
         Actual_margin_per_min = round(Actual_margin_per_min, 5)
       ) %>%
-      mutate(negMargin = !!sym(yselected()) < 0) %>%
+      mutate(negMargin = !!sym(ySelected_Margin()) < 0) %>%
       filter(!is.na(!!sym(input$viewBy))) %>%
       group_by(Start_month, negMargin) %>%
-      arrange(desc(!!sym(yselected())), .by_group = TRUE) %>%
+      arrange(desc(!!sym(ySelected_Margin())), .by_group = TRUE) %>%
       mutate(rank = case_when(negMargin == FALSE ~ n():1,
                               TRUE ~ -n():-1))
   })
-  
-  
+
   output$date <- renderUI({
     servicemonthmin <- min(ymd(marginBreakdownData()$Start_month))
     servicemonthmax <- max(ymd(marginBreakdownData()$Start_month))
@@ -3682,7 +3682,7 @@ output$inc2a  <- renderPlotly(  {
       servicemonthmax
     )
   })
-  
+
   output$dataTable <- renderDataTable({
     req(marginBreakdownData(), input$date)
     marginBreakdownData() %>%
@@ -3690,14 +3690,14 @@ output$inc2a  <- renderPlotly(  {
                Start_month <= input$date[2]) %>%
       filter(!!sym(input$viewBy) %in% c(input$outlet_name, input$client, input$worker))
   })
-  
+
   output$marginBreakdown <- renderPlotly({
     ggplotly(
       ggplot(
         marginBreakdownData(),
         aes(
           x = Start_month,
-          y = !!sym(yselected()),
+          y = !!sym(ySelected_Margin()),
           fill = ordered(rank),
           text = case_when(
             input$viewBy == "outlet_name" ~ paste0(
@@ -3718,11 +3718,11 @@ output$inc2a  <- renderPlotly(  {
               ": ",
               Actual_margin_per_min,
               "\nTotal actual margin: ",
-              Actual_margin_sum,
+              if(exists("Actual_margin_sum")){Actual_margin_sum}else "",
               "\nMargin ",
               input$marginCalcType,
               ": ",
-              !!sym(yselected())
+              !!sym(ySelected_Margin())
             ),
             input$viewBy == "Client" ~ paste0(
               "Start month: ",
@@ -3752,11 +3752,11 @@ output$inc2a  <- renderPlotly(  {
               ": ",
               Actual_margin_per_min,
               "\nTotal actual margin: ",
-              Actual_margin_sum,
+              if(exists("Actual_margin_sum")){Actual_margin_sum}else "",
               "\nMargin ",
               input$marginCalcType,
               ": ",
-              !!sym(yselected())
+              !!sym(ySelected_Margin())
             ),
             input$viewBy == "actual_worker" ~ paste0(
               "Start month: ",
@@ -3786,11 +3786,11 @@ output$inc2a  <- renderPlotly(  {
               ": ",
               Actual_margin_per_min,
               "\nTotal actual margin: ",
-              Actual_margin_sum,
+              if(exists("Actual_margin_sum")){Actual_margin_sum}else "",
               "\nMargin ",
               input$marginCalcType,
               ": ",
-              !!sym(yselected())
+              !!sym(ySelected_Margin())
             )
           )
         )
@@ -3818,7 +3818,7 @@ output$inc2a  <- renderPlotly(  {
       tooltip = "text"
     )
   })
-  
+
   
   #-------------- Margin Starburst ----------------------------
    
